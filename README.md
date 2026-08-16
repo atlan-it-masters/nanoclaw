@@ -40,7 +40,7 @@ bash nanoclaw.sh
 Run from a fresh v2 checkout next to your v1 install:
 
 ```bash
-git clone https://github.com/nanocoai/nanoclaw.git nanoclaw-v2
+git clone https://github.com/atlan-it-masters/nanoclaw.git nanoclaw-v2
 cd nanoclaw-v2
 bash migrate-v2.sh
 ```

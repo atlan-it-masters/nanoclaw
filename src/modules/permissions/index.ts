@@ -19,6 +19,7 @@ import { recordDroppedMessage } from '../../db/dropped-messages.js';
 import { getAgentGroup, getAllAgentGroups } from '../../db/agent-groups.js';
 import { createMessagingGroupAgent, getMessagingGroup, setMessagingGroupDeniedAt } from '../../db/messaging-groups.js';
 import { resolveWiringDefaults } from '../../channels/channel-defaults.js';
+import { readEnvFile } from '../../env.js';
 import {
   routeInbound,
   setAccessGate,
@@ -299,7 +300,93 @@ registerResponseHandler(handleSenderApprovalResponse);
 
 // ── Unknown-channel registration flow ──
 
+/**
+ * Trusted auto-provision: skip the owner-approval card for a first-time DM
+ * and wire the sender straight into their own new agent group.
+ *
+ * Scoped to Teams DMs only, opt-in via TEAMS_AUTO_PROVISION_DM=true in .env.
+ * Safe to trust without an extra in-app tenant check: this install's Teams
+ * bot is registered single-tenant (sign-in-audience myOrg), so Teams itself
+ * already confines install/DM access to the owning Microsoft 365 tenant —
+ * see docs in .claude/skills/add-teams/SKILL.md. Group/channel mentions
+ * still go through the manual card: picking an agent for a shared channel
+ * is a judgment call, not a per-person default.
+ */
+function isTrustedAutoProvisionDm(mg: MessagingGroup): boolean {
+  if (mg.channel_type !== 'teams' || mg.is_group === 1) return false;
+  return readEnvFile(['TEAMS_AUTO_PROVISION_DM']).TEAMS_AUTO_PROVISION_DM === 'true';
+}
+
+/**
+ * Create a new agent group for a first-time trusted sender and wire it in,
+ * then replay the triggering event. Mirrors wireApprovedChannel's wiring
+ * step, minus the pending-approval bookkeeping — there is no card to record
+ * or click here, so no in-flight dedup table is needed: everything below
+ * runs synchronously (no `await` until the final replay), so a duplicate
+ * webhook delivery for the same still-unwired messaging group can't
+ * interleave and double-provision.
+ */
+async function autoProvisionTrustedDm(mg: MessagingGroup, event: InboundEvent): Promise<void> {
+  let senderName = 'Teams user';
+  try {
+    const content = JSON.parse(event.message.content) as Record<string, unknown>;
+    const name = content.senderName ?? content.sender;
+    if (typeof name === 'string' && name) senderName = name;
+  } catch {
+    // non-critical — falls back to the generic name below
+  }
+
+  const ag = createNewAgentGroup(`Atlan Assistant (${senderName})`);
+
+  let engage: { engage_mode: MessagingGroupAgent['engage_mode']; engage_pattern: string | null };
+  try {
+    engage = resolveWiringDefaults(mg.instance ?? mg.channel_type, false, ag.name, mg.channel_type);
+  } catch (err) {
+    log.error('Auto-provision: channel defaults unresolvable', { messagingGroupId: mg.id, err });
+    return;
+  }
+
+  createMessagingGroupAgent({
+    id: `mga-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    messaging_group_id: mg.id,
+    agent_group_id: ag.id,
+    engage_mode: engage.engage_mode,
+    engage_pattern: engage.engage_pattern,
+    sender_scope: 'known',
+    ignored_message_policy: 'accumulate',
+    session_mode: 'shared',
+    priority: 0,
+    created_at: new Date().toISOString(),
+  });
+
+  const senderUserId = extractAndUpsertUser(event);
+  if (senderUserId) {
+    addMember({
+      user_id: senderUserId,
+      agent_group_id: ag.id,
+      added_by: null,
+      added_at: new Date().toISOString(),
+    });
+  }
+
+  log.info('Auto-provisioned trusted Teams DM', {
+    messagingGroupId: mg.id,
+    agentGroupId: ag.id,
+    senderUserId,
+  });
+
+  try {
+    await routeInbound(event);
+  } catch (err) {
+    log.error('Failed to replay message after auto-provision', { messagingGroupId: mg.id, err });
+  }
+}
+
 setChannelRequestGate(async (mg, event) => {
+  if (isTrustedAutoProvisionDm(mg)) {
+    await autoProvisionTrustedDm(mg, event);
+    return;
+  }
   await requestChannelApproval({ messagingGroupId: mg.id, event });
 });
 

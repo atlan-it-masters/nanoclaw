@@ -146,6 +146,19 @@ if [ -n "$LOCK_SHA" ]; then
     BUILD_ARGS+=(--build-arg "AGENT_RUNNER_LOCK_SHA256=$LOCK_SHA")
 fi
 
+# Auth token for installing scoped packages from GitHub Packages (e.g.
+# @wyre-technology/ninjaone-mcp) via cli-tools.json. Read the same way as
+# INSTALL_CJK_FONTS: caller's env wins, falls back to .env. Passed as a
+# BuildKit secret (never a build-arg) so it never lands in image history.
+if [ -z "${NODE_AUTH_TOKEN:-}" ] && [ -f "../.env" ]; then
+    NODE_AUTH_TOKEN="$(grep '^NODE_AUTH_TOKEN=' ../.env | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
+fi
+SECRET_ARGS=()
+if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+    export NODE_AUTH_TOKEN
+    SECRET_ARGS+=(--secret "id=npm_auth_token,env=NODE_AUTH_TOKEN")
+fi
+
 if [ "$PULL" = "true" ]; then
     echo "Pulling NanoClaw agent container image..."
     # Not exec'd: pull.sh runs as a child so `set -e` still carries its exit
@@ -170,18 +183,24 @@ elif [ "$OVERLAY" = "true" ]; then
         echo "FROM ${IMAGE_NAME}:${TAG}"
         echo "USER root"
         echo "COPY cli-tools.json install-cli-tools.sh /tmp/"
-        echo "RUN sh /tmp/install-cli-tools.sh /tmp/cli-tools.json && \\"
+        echo "RUN --mount=type=secret,id=npm_auth_token \\"
+        echo "    if [ -f /run/secrets/npm_auth_token ]; then \\"
+        echo "      echo \"@wyre-technology:registry=https://npm.pkg.github.com\" >> /root/.npmrc && \\"
+        echo "      echo \"//npm.pkg.github.com/:_authToken=\$(cat /run/secrets/npm_auth_token)\" >> /root/.npmrc; \\"
+        echo "    fi && \\"
+        echo "    sh /tmp/install-cli-tools.sh /tmp/cli-tools.json && \\"
+        echo "    sed -i '/npm.pkg.github.com/d' /root/.npmrc 2>/dev/null; \\"
         echo "    rm -f /tmp/cli-tools.json /tmp/install-cli-tools.sh"
         echo "USER node"
         echo "LABEL dev.nanoclaw.unhardened-additions=\"cli-tools.json\""
     } > "$OVERLAY_DOCKERFILE"
 
-    ${CONTAINER_RUNTIME} build -f "$OVERLAY_DOCKERFILE" -t "${IMAGE_NAME}:${TAG}" .
+    DOCKER_BUILDKIT=1 ${CONTAINER_RUNTIME} build "${SECRET_ARGS[@]}" -f "$OVERLAY_DOCKERFILE" -t "${IMAGE_NAME}:${TAG}" .
 else
     echo "Building NanoClaw agent container image..."
     echo "Image: ${IMAGE_NAME}:${TAG}"
 
-    ${CONTAINER_RUNTIME} build "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}:${TAG}" .
+    DOCKER_BUILDKIT=1 ${CONTAINER_RUNTIME} build "${SECRET_ARGS[@]}" "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}:${TAG}" .
 fi
 
 echo ""

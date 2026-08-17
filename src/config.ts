@@ -4,6 +4,7 @@ import path from 'path';
 import { readEnvFile } from './env.js';
 import { getContainerImageBase, getDefaultContainerImage, getInstallSlug } from './install-slug.js';
 import { isValidTimezone } from './timezone.js';
+import type { McpServerConfig } from './container-config.js';
 
 // Read config values from .env (falls back to process.env).
 const envConfig = readEnvFile([
@@ -19,6 +20,16 @@ const envConfig = readEnvFile([
   'NANOCLAW_EGRESS_LOCKDOWN',
   'NANOCLAW_EGRESS_NETWORK',
   'ONECLI_GATEWAY_CONTAINER',
+  'NINJAONE_CLIENT_ID',
+  'NINJAONE_CLIENT_SECRET',
+  'NINJAONE_REGION',
+  'ITGLUE_API_KEY',
+  'ITGLUE_REGION',
+  'MS365_MAIL_TENANT_ID',
+  'MS365_MAIL_CLIENT_ID',
+  'MS365_MAIL_CLIENT_SECRET',
+  'SENTINELONE_CONSOLE_BASE_URL',
+  'SENTINELONE_API_TOKEN',
 ]);
 
 /**
@@ -105,3 +116,93 @@ function resolveConfigTimezone(): string {
   return 'UTC';
 }
 export const TIMEZONE = resolveConfigTimezone();
+
+// Instance-wide default MCP servers stamped onto newly created groups (bare and
+// template-based), same "new groups only, never retroactive" contract as
+// DEFAULT_AGENT_PROVIDER above. Existing groups need `ncl groups config
+// add-mcp-server` / `remove-mcp-server` to change. Empty unless the install has
+// configured NinjaOne credentials in .env.
+const ninjaoneClientId = process.env.NINJAONE_CLIENT_ID || envConfig.NINJAONE_CLIENT_ID;
+const ninjaoneClientSecret = process.env.NINJAONE_CLIENT_SECRET || envConfig.NINJAONE_CLIENT_SECRET;
+const ninjaoneRegion = process.env.NINJAONE_REGION || envConfig.NINJAONE_REGION || 'us';
+const itglueApiKey = process.env.ITGLUE_API_KEY || envConfig.ITGLUE_API_KEY;
+const itglueRegion = process.env.ITGLUE_REGION || envConfig.ITGLUE_REGION || 'us';
+const ms365MailTenantId = process.env.MS365_MAIL_TENANT_ID || envConfig.MS365_MAIL_TENANT_ID;
+const ms365MailClientId = process.env.MS365_MAIL_CLIENT_ID || envConfig.MS365_MAIL_CLIENT_ID;
+const ms365MailClientSecret = process.env.MS365_MAIL_CLIENT_SECRET || envConfig.MS365_MAIL_CLIENT_SECRET;
+const sentineloneConsoleBaseUrl = process.env.SENTINELONE_CONSOLE_BASE_URL || envConfig.SENTINELONE_CONSOLE_BASE_URL;
+const sentineloneApiToken = process.env.SENTINELONE_API_TOKEN || envConfig.SENTINELONE_API_TOKEN;
+export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
+  // Public, unauthenticated remote server — no credential gating needed.
+  learn: {
+    type: 'http',
+    url: 'https://learn.microsoft.com/api/mcp',
+  },
+  ...(ninjaoneClientId && ninjaoneClientSecret
+    ? {
+        ninjaone: {
+          command: 'ninjaone-mcp',
+          args: [],
+          env: {
+            NINJAONE_CLIENT_ID: ninjaoneClientId,
+            NINJAONE_CLIENT_SECRET: ninjaoneClientSecret,
+            NINJAONE_REGION: ninjaoneRegion,
+          },
+        },
+      }
+    : {}),
+  ...(itglueApiKey
+    ? {
+        itglue: {
+          command: 'itglue-mcp',
+          args: [],
+          env: {
+            ITGLUE_API_KEY: itglueApiKey,
+            ITGLUE_REGION: itglueRegion,
+          },
+        },
+      }
+    : {}),
+  // App-only (client-credentials) Graph auth via the wrapper in
+  // container/ms365-mail-mcp-wrapper.js — @softeria/ms-365-mcp-server has no
+  // client-credentials mode of its own. Read-only, restricted to the
+  // shared-mailbox tools (which hit /users/{id}/... rather than /me/...,
+  // the only Graph shape an app-only token can use). Mailbox access itself is
+  // scoped at the Exchange Online Application Access Policy layer, not here.
+  ...(ms365MailTenantId && ms365MailClientId && ms365MailClientSecret
+    ? {
+        m365mail: {
+          command: '/usr/local/bin/ms365-mail-mcp-wrapper.js',
+          args: [
+            '--org-mode',
+            '--read-only',
+            '--enabled-tools',
+            '^(list-shared-mailbox-messages|get-shared-mailbox-message|list-shared-mailbox-folder-messages)$',
+          ],
+          env: {
+            MS365_MAIL_TENANT_ID: ms365MailTenantId,
+            MS365_MAIL_CLIENT_ID: ms365MailClientId,
+            MS365_MAIL_CLIENT_SECRET: ms365MailClientSecret,
+          },
+        },
+      }
+    : {}),
+  // Multitenant Streamable HTTP wrapper (see container/README notes at
+  // ghcr.io/wyre-technology/sentinelone-mcp) running as a standalone
+  // companion service on this host, bound to the docker bridge gateway IP —
+  // same pattern as the OneCLI gateway container. Credentials ride as HTTP
+  // headers per request rather than container env, since the proxy is
+  // multi-tenant by design.
+  ...(sentineloneConsoleBaseUrl && sentineloneApiToken
+    ? {
+        sentinelone: {
+          type: 'http',
+          url: 'http://host.docker.internal:8080/mcp',
+          headers: {
+            'x-purplemcp-token': sentineloneApiToken,
+            'x-purplemcp-base-url': sentineloneConsoleBaseUrl,
+          },
+        },
+      }
+    : {}),
+};

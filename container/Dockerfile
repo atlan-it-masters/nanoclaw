@@ -102,9 +102,30 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 # skill can add one with a json-merge instead of editing this Dockerfile.
 # install-cli-tools.sh installs each via pnpm (pinned), writing the per-tool
 # only-built-dependencies opt-ins it reads from the manifest.
+#
+# Some tools (e.g. @wyre-technology/ninjaone-mcp) are scoped packages hosted on
+# GitHub Packages, which requires an auth token even for public packages. A
+# BuildKit secret carries that token in only for this RUN's process — it is
+# never persisted as a build-arg or image layer var. The npmrc line is written
+# and stripped in the same RUN so the final layer's file content never
+# contains it either. build.sh passes the secret when NODE_AUTH_TOKEN is set;
+# omitting it is fine for images that don't need any GitHub-Packages-hosted
+# tool.
 COPY cli-tools.json install-cli-tools.sh /tmp/
 RUN --mount=type=cache,target=/root/.cache/pnpm \
-    sh /tmp/install-cli-tools.sh /tmp/cli-tools.json
+    --mount=type=secret,id=npm_auth_token \
+    if [ -f /run/secrets/npm_auth_token ]; then \
+      echo "@wyre-technology:registry=https://npm.pkg.github.com" >> /root/.npmrc && \
+      echo "//npm.pkg.github.com/:_authToken=$(cat /run/secrets/npm_auth_token)" >> /root/.npmrc; \
+    fi && \
+    sh /tmp/install-cli-tools.sh /tmp/cli-tools.json && \
+    (sed -i '/npm.pkg.github.com/d' /root/.npmrc 2>/dev/null || true)
+
+# ---- Microsoft 365 mail MCP wrapper -------------------------------------------
+# @softeria/ms-365-mcp-server has no client-credentials (app-only) auth mode —
+# see container/ms365-mail-mcp-wrapper.js for why this wrapper exists.
+COPY ms365-mail-mcp-wrapper.js /usr/local/bin/ms365-mail-mcp-wrapper.js
+RUN chmod +x /usr/local/bin/ms365-mail-mcp-wrapper.js
 
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.

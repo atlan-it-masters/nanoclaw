@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { CONTAINER_PLUGINS_DIR } from '../container-config.js';
-import { DATA_DIR, GROUPS_DIR, TIMEZONE } from '../config.js';
+import { DATA_DIR, DEFAULT_MCP_SERVERS, GROUPS_DIR, TIMEZONE } from '../config.js';
 import { createAgentGroup } from '../db/agent-groups.js';
 import {
   ensureContainerConfig,
@@ -140,7 +140,12 @@ export function createAgentFromTemplate(ref: string, opts?: CreateAgentOptions):
     fs.mkdirSync(path.join(groupDir, 'plugin-data', tpl.name, sub), { recursive: true });
   }
 
-  updateContainerConfigJson(id, 'mcp_servers', markPluginServers(tpl.mcpServers, tpl.name));
+  // Instance-wide defaults (e.g. NinjaOne) merge underneath the template's own
+  // servers — a template that declares its own entry under the same name wins.
+  updateContainerConfigJson(id, 'mcp_servers', {
+    ...DEFAULT_MCP_SERVERS,
+    ...markPluginServers(tpl.mcpServers, tpl.name),
+  });
 
   // Per-group skills overlay — keyed by group id, never shared. Copied through
   // the hardened copier like everything else that leaves the plugin.

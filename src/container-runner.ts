@@ -499,7 +499,8 @@ async function buildContainerArgs(
 
   // Egress lockdown when enabled — throws if it can't be established, aborting
   // the spawn rather than running with open egress. Otherwise the host gateway.
-  if (ensureEgressNetwork()) {
+  const egressLockdownActive = ensureEgressNetwork();
+  if (egressLockdownActive) {
     args.push(...egressNetworkArgs());
     log.info('Egress lockdown active', { containerName, network: EGRESS_NETWORK });
   } else {
@@ -540,6 +541,18 @@ async function buildContainerArgs(
     throw new Error('OneCLI gateway not applied — refusing to spawn container without credentials');
   }
   log.info('OneCLI gateway applied', { containerName });
+
+  // host.docker.internal only resolves to the real host (via the --add-host
+  // above) outside egress lockdown — OneCLI's gateway container has no such
+  // alias, so an http(s)-type MCP server URL pointing at host.docker.internal
+  // (e.g. a companion service like sentinelone-mcp) would otherwise get
+  // silently routed through OneCLI's HTTPS_PROXY/HTTP_PROXY (injected just
+  // above) and fail to resolve there. Exempt it so those requests go direct.
+  // Pushed after the OneCLI env injection so it isn't clobbered by it.
+  if (!egressLockdownActive) {
+    args.push('-e', 'NO_PROXY=host.docker.internal');
+    args.push('-e', 'no_proxy=host.docker.internal');
+  }
 
   // Override entrypoint: run v2 entry point directly via Bun (no tsc, no stdin).
   args.push('--entrypoint', 'bash');

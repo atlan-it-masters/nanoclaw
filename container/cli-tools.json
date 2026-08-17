@@ -8,5 +8,17 @@
     "name": "@anthropic-ai/claude-code",
     "version": "2.1.197",
     "onlyBuilt": true
+  },
+  {
+    "name": "@wyre-technology/ninjaone-mcp",
+    "version": "1.7.0"
+  },
+  {
+    "name": "@wyre-technology/itglue-mcp",
+    "version": "1.12.0"
+  },
+  {
+    "name": "@softeria/ms-365-mcp-server",
+    "version": "0.143.0"
   }
 ]

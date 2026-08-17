@@ -11,7 +11,10 @@ vi.mock('../../container-runner.js', () => ({
 vi.mock('../../session-manager.js', () => ({ writeSessionMessage: vi.fn() }));
 vi.mock('../../config.js', async () => {
   const actual = await vi.importActual('../../config.js');
-  return { ...actual, DATA_DIR: '/tmp/nanoclaw-test-self-mod-apply' };
+  // DEFAULT_MCP_SERVERS is empty unless NINJAONE_* is set in the developer's own
+  // .env — pin it here so this test's fixtures stay deterministic regardless of
+  // ambient install-specific config.
+  return { ...actual, DATA_DIR: '/tmp/nanoclaw-test-self-mod-apply', DEFAULT_MCP_SERVERS: {} };
 });
 
 import {

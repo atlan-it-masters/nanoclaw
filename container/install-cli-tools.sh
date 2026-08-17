@@ -13,11 +13,13 @@ set -eu
 
 MANIFEST="${1:-/tmp/cli-tools.json}"
 
-# Write the per-tool only-built-dependencies opt-ins pnpm reads at install time.
+# Append the per-tool only-built-dependencies opt-ins pnpm reads at install
+# time. Append (not overwrite) so a registry/auth line pre-seeded by the
+# Dockerfile (e.g. for a scoped package hosted on GitHub Packages) survives.
 node -e '
   const tools = require(process.argv[1]);
   const optIns = tools.filter((t) => t.onlyBuilt).map((t) => "only-built-dependencies[]=" + t.name);
-  require("fs").writeFileSync("/root/.npmrc", optIns.join("\n") + (optIns.length ? "\n" : ""));
+  require("fs").appendFileSync("/root/.npmrc", optIns.join("\n") + (optIns.length ? "\n" : ""));
 ' "$MANIFEST"
 
 # Install every tool, pinned. name@version specs never contain spaces, so the

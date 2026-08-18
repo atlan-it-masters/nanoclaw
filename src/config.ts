@@ -48,6 +48,8 @@ const envConfig = readEnvFile([
   'BOOKSTACK_BASE_URL',
   'BOOKSTACK_TOKEN_ID',
   'BOOKSTACK_TOKEN_SECRET',
+  'UPTIME_KUMA_URL',
+  'UPTIME_KUMA_JWT_TOKEN',
 ]);
 
 /**
@@ -182,6 +184,8 @@ const wazuhVerifySsl = process.env.WAZUH_VERIFY_SSL || envConfig.WAZUH_VERIFY_SS
 const bookstackBaseUrl = (process.env.BOOKSTACK_BASE_URL || envConfig.BOOKSTACK_BASE_URL)?.replace(/\/+$/, '');
 const bookstackTokenId = process.env.BOOKSTACK_TOKEN_ID || envConfig.BOOKSTACK_TOKEN_ID;
 const bookstackTokenSecret = process.env.BOOKSTACK_TOKEN_SECRET || envConfig.BOOKSTACK_TOKEN_SECRET;
+const uptimeKumaUrl = process.env.UPTIME_KUMA_URL || envConfig.UPTIME_KUMA_URL;
+const uptimeKumaJwtToken = process.env.UPTIME_KUMA_JWT_TOKEN || envConfig.UPTIME_KUMA_JWT_TOKEN;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -387,6 +391,49 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             BOOKSTACK_TOKEN_SECRET: bookstackTokenSecret,
             BOOKSTACK_ENABLE_WRITE: 'false',
           },
+        },
+      }
+    : {}),
+  // Installed via pnpm (container/cli-tools.json). No vendor-side read-only
+  // mode exists — the README says outright that full read/write control is
+  // the default, so deniedTools blocks every create/update/delete/pause/
+  // resume tool. Uses a JWT (not username/password — Socket.IO login with
+  // the real password proved unreliable in testing, intermittent "Login
+  // failed" with no code change between tries; the JWT was consistent
+  // across repeated tries). The "Api Key" format Uptime Kuma itself exposes
+  // (uk1_/uk2_/uk3_ prefix) isn't accepted at all here — this server's
+  // Socket.IO login only takes username/password or a real 3-segment JWT.
+  // Get one with: npx -p @davidfuchs/mcp-uptime-kuma mcp-uptime-kuma-get-jwt
+  // <url> <username> <password> — note it has no expiry claim, so it won't
+  // silently rot, but rotate it if the account password ever changes.
+  ...(uptimeKumaUrl && uptimeKumaJwtToken
+    ? {
+        'uptime-kuma': {
+          command: 'mcp-uptime-kuma',
+          args: [],
+          env: {
+            UPTIME_KUMA_URL: uptimeKumaUrl,
+            UPTIME_KUMA_JWT_TOKEN: uptimeKumaJwtToken,
+          },
+          deniedTools: [
+            'createMonitor',
+            'updateMonitor',
+            'deleteMonitor',
+            'addNotification',
+            'updateNotification',
+            'deleteNotification',
+            'addTag',
+            'deleteTag',
+            'createMaintenance',
+            'addDockerHost',
+            'updateDockerHost',
+            'deleteDockerHost',
+            'createStatusPage',
+            'updateStatusPage',
+            'deleteStatusPage',
+            'pauseMonitor',
+            'resumeMonitor',
+          ],
         },
       }
     : {}),

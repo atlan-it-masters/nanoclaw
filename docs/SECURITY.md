@@ -221,6 +221,7 @@ own credentials have no read-only scope:
 | `ninjaone` | `ninjaone_devices_reboot`, `ninjaone_organizations_create`, `ninjaone_alerts_reset`, `ninjaone_alerts_reset_all`, `ninjaone_tickets_create`, `ninjaone_tickets_update`, `ninjaone_tickets_add_comment` |
 | `itglue` | `create_location`, `update_location`, `create_document`, `create_document_section`, `update_document_section`, `delete_document_section`, `publish_document`, `archive_document`, `unarchive_document` |
 | `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
+| `uptime-kuma` | `createMonitor`, `updateMonitor`, `deleteMonitor`, `addNotification`, `updateNotification`, `deleteNotification`, `addTag`, `deleteTag`, `createMaintenance`, `addDockerHost`, `updateDockerHost`, `deleteDockerHost`, `createStatusPage`, `updateStatusPage`, `deleteStatusPage`, `pauseMonitor`, `resumeMonitor` |
 
 Not restricted: `m365mail` and `bookstack` (already read-only at the
 source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the

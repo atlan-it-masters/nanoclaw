@@ -24,5 +24,9 @@
   {
     "name": "bookstack-mcp",
     "version": "5.3.0"
+  },
+  {
+    "name": "@davidfuchs/mcp-uptime-kuma",
+    "version": "0.11.9"
   }
 ]

@@ -175,6 +175,64 @@ pip, curl, node/bun with the proxy env) are unaffected. Any workflow that relies
 on a **non-proxy-aware** tool reaching the internet directly will fail by design.
 Lockdown is **off by default**; opt in with `NANOCLAW_EGRESS_LOCKDOWN=true`.
 
+### 6. MCP Tool Access Control (Read-Only Enforcement)
+
+Not every third-party API a group's MCP servers talk to can be scoped
+read-only at the credential level — some vendors issue one API key/secret
+with full read+write access and no narrower role to request. For those,
+NanoClaw enforces the read/write split itself instead of relying on the
+vendor.
+
+`McpServerConfig` (`src/container-config.ts`) carries an optional
+`deniedTools?: string[]` — bare tool names (no `mcp__<server>__` prefix) to
+block on that server. The provider (`container/agent-runner/src/providers/
+claude.ts`) turns each into a `mcp__<server>__<tool>` entry in the CLI's
+`disallowedTools` list.
+
+**This must be a denylist, not an allowlist.** Tested directly against the
+`claude` CLI: a narrow `--allowedTools` list naming only the tools meant to
+be permitted does **not** hide a connected MCP server's other tools — a
+model asked to enumerate a server's tools under a restrictive `allowedTools`
+still saw every tool, permitted or not, and would call a "restricted" one if
+not for its own judgment. Only `--disallowedTools` with exact tool names
+genuinely removes a tool from what the model can see or call. `deniedTools`
+is implemented on that basis — an allowlist-shaped field would look correct
+and enforce nothing.
+
+**Setting it:**
+- New groups: add `deniedTools: [...]` to the server's entry in
+  `DEFAULT_MCP_SERVERS` (`src/config.ts`).
+- Existing groups: `ncl groups config add-mcp-server --id <group> --name
+  <server> --command <cmd> --env <json> --denied-tools '["tool1","tool2"]'`
+  (re-supplying `command`/`env` too — this replaces the whole server entry,
+  it does not merge), then `ncl groups restart --id <group>`.
+
+**Agents cannot grant themselves a blocked tool back.** No self-mod tool
+(`add_mcp_server`, `container/agent-runner/src/mcp-tools/self-mod.ts`)
+exposes `deniedTools` as a settable param — the same deliberate gap as
+`cwd`/`pluginRoot`. Only the host-side `ncl` CLI (operator) or
+`DEFAULT_MCP_SERVERS` (install config) can set it.
+
+**Currently configured in this install** (as of 2026-08-18) — servers whose
+own credentials have no read-only scope:
+
+| Server | Blocked tools |
+| --- | --- |
+| `ninjaone` | `ninjaone_devices_reboot`, `ninjaone_organizations_create`, `ninjaone_alerts_reset`, `ninjaone_alerts_reset_all`, `ninjaone_tickets_create`, `ninjaone_tickets_update`, `ninjaone_tickets_add_comment` |
+| `itglue` | `create_location`, `update_location`, `create_document`, `create_document_section`, `update_document_section`, `delete_document_section`, `publish_document`, `archive_document`, `unarchive_document` |
+| `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
+
+Not restricted: `m365mail` (already read-only at the source via
+`--enabled-tools` on the underlying package), `learn` and `sentinelone`
+(entirely read/query tools by design, nothing to block), `unifi` (the
+`cloud-ea` tool set registered is read/reporting-only — no device-control
+tools exist in that mode).
+
+`itglue`'s `get_password`/`search_passwords` are intentionally **not**
+blocked — they read a value rather than mutate anything, so they're a
+data-sensitivity question, not a write-access one. Revisit if that's a
+concern for this install.
+
 ## Resource Limits
 
 Per-container CPU and memory caps are **opt-in and unset by default** — a runaway

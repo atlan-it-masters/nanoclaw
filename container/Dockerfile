@@ -242,6 +242,23 @@ RUN curl -fsSL -o /usr/local/bin/cove-mcp \
     echo "3433d8ba21da1c32c038bf50841f9dfd4edd3210b7dedf974693915063813a29  /usr/local/bin/cove-cli" | sha256sum -c - && \
     chmod +x /usr/local/bin/cove-mcp /usr/local/bin/cove-cli
 
+# ---- Sophos Central MCP server (Node, stdio) -----------------------------------
+# atlan-it-masters/NC_sophos-central-mcp is a from-scratch server (no
+# third-party Sophos Central MCP existed to fork), same build-from-source
+# shape as cipp-mcp/autotask-mcp above. Plain TS, no private/GitHub-Packages
+# dependencies — no npm auth secret needed here.
+ARG SOPHOS_MCP_REF=75f3e0163350d374b7f5000a610abe8a6bfd1302
+RUN git clone https://github.com/atlan-it-masters/NC_sophos-central-mcp.git /opt/sophos-mcp && \
+    cd /opt/sophos-mcp && \
+    git checkout "${SOPHOS_MCP_REF}" && \
+    npm ci --ignore-scripts && \
+    npm run build && \
+    npm prune --omit=dev && \
+    rm -rf .git && \
+    printf '#!/bin/sh\nexec node /opt/sophos-mcp/dist/entry.js "$@"\n' > /usr/local/bin/sophos-central-mcp && \
+    chmod +x /usr/local/bin/sophos-central-mcp && \
+    chmod -R a+rX /opt/sophos-mcp
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

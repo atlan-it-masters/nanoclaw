@@ -62,6 +62,8 @@ const envConfig = readEnvFile([
   'COVE_PARTNER',
   'COVE_USERNAME',
   'COVE_PASSWORD',
+  'SOPHOS_CLIENT_ID',
+  'SOPHOS_CLIENT_SECRET',
 ]);
 
 /**
@@ -216,6 +218,8 @@ const autotaskEnhanceConcurrency =
 const covePartner = process.env.COVE_PARTNER || envConfig.COVE_PARTNER;
 const coveUsername = process.env.COVE_USERNAME || envConfig.COVE_USERNAME;
 const covePassword = process.env.COVE_PASSWORD || envConfig.COVE_PASSWORD;
+const sophosClientId = process.env.SOPHOS_CLIENT_ID || envConfig.SOPHOS_CLIENT_ID;
+const sophosClientSecret = process.env.SOPHOS_CLIENT_SECRET || envConfig.SOPHOS_CLIENT_SECRET;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -594,6 +598,26 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             COVE_PASSWORD: covePassword,
           },
           deniedTools: ['call', 'import'],
+        },
+      }
+    : {}),
+  // Built from source (github.com/atlan-it-masters/NC_sophos-central-mcp) — a
+  // from-scratch server, not a fork of an existing project, since no
+  // third-party Sophos Central MCP existed. Implements ZERO mutating
+  // endpoints at all (no isolate/release/reboot/CRUD tools exist to call) —
+  // stronger than a deny-list, so no deniedTools needed. This credential is
+  // partner-scoped (verified live: manages 74 customer tenants, not just
+  // Atlan itself) — every tool takes an optional tenantId, resolved via
+  // sophos_list_tenants; see container/CLAUDE.md for the agent-facing note.
+  ...(sophosClientId && sophosClientSecret
+    ? {
+        sophos: {
+          command: 'sophos-central-mcp',
+          args: [],
+          env: {
+            SOPHOS_CLIENT_ID: sophosClientId,
+            SOPHOS_CLIENT_SECRET: sophosClientSecret,
+          },
         },
       }
     : {}),

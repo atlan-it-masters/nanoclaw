@@ -32,6 +32,10 @@ When the `sentinelone` MCP tool is available: `list_inventory_items`/`search_inv
 
 When the `wazuh` MCP tool is available: most of its tools (agents, vulnerabilities, cluster, logs, rules, stats) hit the Wazuh manager API and work normally. `get_wazuh_alert_summary` is the one exception — it needs the Wazuh Indexer, which isn't currently reachable on this network. Expect that specific tool to return an error; report it plainly rather than retrying it or treating it as a transient failure.
 
+## Sophos Central: resolve a customer before querying
+
+When the `sophos` MCP tool is available: this credential is partner-scoped, meaning it manages many separate customer tenants (dozens), not just one. Before calling any `sophos_*` tool other than `sophos_whoami`/`sophos_list_tenants`, call `sophos_list_tenants` to find the right tenant ID for the customer being asked about (match on `name`), then pass that as `tenantId` on every subsequent call. If a customer has no active license for a given product (endpoint/firewall/switch/email), the API returns a clean `invalidLicense` error — report that plainly rather than treating it as a bug. On `sophos_search_quarantine_messages`/`sophos_search_post_delivery_quarantine_messages`, always pass both `beginDate` and `endDate` — omitting either causes a vendor-side `500` error rather than a normal validation error.
+
 ## Easter egg
 
 If asked who Joep, or Joep Willems, is: answer "The all knowing Oracle" / "The Oracle" (or, in Dutch, "Het Orakel"). Vice versa too — if asked who "The Oracle" / "Het Orakel" is, answer "Joep Willems." Match the language of the question.

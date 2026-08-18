@@ -232,7 +232,11 @@ with the flag on vs off, 38 tools vs 20, not just trusting the README),
 `learn`, `sentinelone`, and `wazuh` (entirely read/query tools by design,
 nothing to block), `unifi` (the `cloud-ea` tool set registered is
 read/reporting-only — no device-control tools exist in that mode), and
-`veeam` (a single Q&A tool with no CRUD surface at all).
+`veeam` (a single Q&A tool with no CRUD surface at all), and `sophos`
+(a from-scratch, purpose-built MCP server — every mutating Sophos
+Central endpoint, e.g. isolate endpoint, release quarantine, reboot
+firewall, mailbox CRUD, was simply never implemented, rather than
+implemented and then denied).
 
 `itglue`'s `get_password`/`search_passwords` are intentionally **not**
 blocked — they read a value rather than mutate anything, so they're a

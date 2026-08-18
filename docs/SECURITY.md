@@ -222,6 +222,7 @@ own credentials have no read-only scope:
 | `itglue` | `create_location`, `update_location`, `create_document`, `create_document_section`, `update_document_section`, `delete_document_section`, `publish_document`, `archive_document`, `unarchive_document` |
 | `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
 | `uptime-kuma` | `createMonitor`, `updateMonitor`, `deleteMonitor`, `addNotification`, `updateNotification`, `deleteNotification`, `addTag`, `deleteTag`, `createMaintenance`, `addDockerHost`, `updateDockerHost`, `deleteDockerHost`, `createStatusPage`, `updateStatusPage`, `deleteStatusPage`, `pauseMonitor`, `resumeMonitor` |
+| `autotask` | All 41 `autotask_create_*`/`autotask_update_*`/`autotask_delete_*` tools, plus `autotask_execute_tool` and `autotask_raw_request` — see below |
 
 Not restricted: `m365mail` and `bookstack` (already read-only at the
 source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the
@@ -236,6 +237,19 @@ read/reporting-only — no device-control tools exist in that mode), and
 blocked — they read a value rather than mutate anything, so they're a
 data-sensitivity question, not a write-access one. Revisit if that's a
 concern for this install.
+
+**`autotask`'s deny-list has to cover more than the obvious write tools.**
+Its 101-tool surface includes `autotask_execute_tool` ("Execute any Autotask
+tool by name") and `autotask_raw_request` (arbitrary GET/POST/PATCH/PUT/DELETE
+against any Autotask REST path). Both are **blocked outright**, not
+selectively: `deniedTools` matches the literal MCP tool name the model
+calls (`mcp__autotask__autotask_execute_tool`), not a tool name passed as
+a string *argument* to that call — so blocking `autotask_delete_ticket_charge`
+alone would do nothing to stop `autotask_execute_tool({toolName:
+"autotask_delete_ticket_charge", ...})` from reaching the same handler.
+`autotask_router` stays allowed — verified in source
+(`src/handlers/tool.handler.ts`) that it only returns a suggested-tool-name
+object and never itself dispatches to a handler.
 
 ## Resource Limits
 

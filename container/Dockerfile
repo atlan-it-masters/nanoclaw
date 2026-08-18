@@ -197,6 +197,34 @@ RUN git clone https://github.com/atlan-it-masters/NC_veeam-mcp-server.git /opt/v
     chmod +x /usr/local/bin/veeam-mcp && \
     chmod -R a+rX /opt/veeam-mcp
 
+# ---- Autotask MCP server (Node, stdio) -----------------------------------------
+# autotask-mcp isn't published to any package registry — build it from source
+# at a pinned commit, same shape as cipp-mcp/veeam-mcp above. Unlike those two,
+# its own `autotask-node` dependency IS a private @wyre-technology package on
+# GitHub Packages (confirmed via package-lock.json's resolved URL — the
+# README's claim that no token is needed is stale/inaccurate for the pinned
+# version here), so this needs the same BuildKit-secret npm auth token as the
+# cli-tools.json install further up. The secret is mounted only for this RUN's
+# process and the .npmrc line is written and removed in the same step, so
+# neither the token nor its presence persists in any image layer.
+ARG AUTOTASK_MCP_REF=57534bebc6eee879f5da506fa61567db1687359d
+RUN --mount=type=secret,id=npm_auth_token \
+    git clone https://github.com/atlan-it-masters/NC_autotask-mcp.git /opt/autotask-mcp && \
+    cd /opt/autotask-mcp && \
+    git checkout "${AUTOTASK_MCP_REF}" && \
+    if [ -f /run/secrets/npm_auth_token ]; then \
+      echo "@wyre-technology:registry=https://npm.pkg.github.com" > .npmrc && \
+      echo "//npm.pkg.github.com/:_authToken=$(cat /run/secrets/npm_auth_token)" >> .npmrc; \
+    fi && \
+    npm ci --ignore-scripts && \
+    rm -f .npmrc && \
+    npm run build && \
+    npm prune --omit=dev && \
+    rm -rf .git && \
+    printf '#!/bin/sh\nexec node /opt/autotask-mcp/dist/entry.js "$@"\n' > /usr/local/bin/autotask-mcp && \
+    chmod +x /usr/local/bin/autotask-mcp && \
+    chmod -R a+rX /opt/autotask-mcp
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

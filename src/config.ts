@@ -55,6 +55,10 @@ const envConfig = readEnvFile([
   'VEEAM_ADMIN_USERNAME',
   'VEEAM_ADMIN_PASSWORD',
   'VEEAM_ACCEPT_SELF_SIGNED_CERT',
+  'AUTOTASK_USERNAME',
+  'AUTOTASK_SECRET',
+  'AUTOTASK_INTEGRATION_CODE',
+  'AUTOTASK_ENHANCE_CONCURRENCY',
 ]);
 
 /**
@@ -201,6 +205,12 @@ const veeamAdminUsername = process.env.VEEAM_ADMIN_USERNAME || envConfig.VEEAM_A
 const veeamAdminPassword = process.env.VEEAM_ADMIN_PASSWORD || envConfig.VEEAM_ADMIN_PASSWORD;
 const veeamAcceptSelfSignedCert =
   process.env.VEEAM_ACCEPT_SELF_SIGNED_CERT || envConfig.VEEAM_ACCEPT_SELF_SIGNED_CERT || 'false';
+const autotaskUsername = process.env.AUTOTASK_USERNAME || envConfig.AUTOTASK_USERNAME;
+const autotaskSecret = process.env.AUTOTASK_SECRET || envConfig.AUTOTASK_SECRET;
+const autotaskIntegrationCode =
+  process.env.AUTOTASK_INTEGRATION_CODE || envConfig.AUTOTASK_INTEGRATION_CODE;
+const autotaskEnhanceConcurrency =
+  process.env.AUTOTASK_ENHANCE_CONCURRENCY || envConfig.AUTOTASK_ENHANCE_CONCURRENCY || '3';
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -458,11 +468,10 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // (veeam-question-answering, natural-language Q&A) and no per-object
   // CRUD tools exist at all, so there's nothing destructive to block.
   // PRODUCT_NAME must be one of vbr | vone | vspc (validated by the package
-  // itself). Note: verified end-to-end with a real question — auth works,
-  // but the connected instance is running Veeam Intelligence in "Base
-  // Mode" (documentation-only answers), not "Advanced Mode" (live
-  // operational data) — that's a setting on the Veeam product side, not
-  // fixable here. See container/CLAUDE.md.
+  // itself). Verified end-to-end with a real question — auth works and
+  // Veeam Intelligence is running in Advanced mode (live operational data),
+  // switched from the initial Base mode via VSPC Configuration > Catalog >
+  // Veeam Intelligence > Advanced.
   ...(veeamProductName && veeamWebUrl && veeamAdminUsername && veeamAdminPassword
     ? {
         veeam: {
@@ -475,6 +484,82 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             ADMIN_PASSWORD: veeamAdminPassword,
             ACCEPT_SELF_SIGNED_CERT: veeamAcceptSelfSignedCert,
           },
+        },
+      }
+    : {}),
+  // Built from source into the agent image (see container/Dockerfile) — not
+  // published to any registry, and its own `autotask-node` dependency is a
+  // private @wyre-technology GitHub Packages package (needs NODE_AUTH_TOKEN
+  // at image build time, same as the ninjaone-mcp/itglue-mcp cli-tools.json
+  // entries). 101 tools total, no vendor-side read-only mode, so deniedTools
+  // blocks every create/update/delete tool (41 of them) PLUS two escape
+  // hatches that would otherwise bypass the deny-list entirely:
+  // `autotask_execute_tool` (dispatches to any tool by name string — including
+  // blocked ones — since deniedTools only matches the literal
+  // mcp__autotask__<name> the model calls, not a name passed as an argument)
+  // and `autotask_raw_request` (arbitrary GET/POST/PATCH/PUT/DELETE against
+  // any Autotask REST path). `autotask_router`/`autotask_list_categories`/
+  // `autotask_list_category_tools` stay allowed — verified in source
+  // (tool.handler.ts) that they only return metadata/suggestions and never
+  // execute a tool themselves. AUTOTASK_ENHANCE_CONCURRENCY caps concurrent
+  // Autotask API calls used for ID-to-name resolution (default 3, pinned
+  // explicitly here rather than relying on the package default).
+  ...(autotaskUsername && autotaskSecret && autotaskIntegrationCode
+    ? {
+        autotask: {
+          command: 'autotask-mcp',
+          args: [],
+          env: {
+            AUTOTASK_USERNAME: autotaskUsername,
+            AUTOTASK_SECRET: autotaskSecret,
+            AUTOTASK_INTEGRATION_CODE: autotaskIntegrationCode,
+            AUTOTASK_ENHANCE_CONCURRENCY: autotaskEnhanceConcurrency,
+          },
+          deniedTools: [
+            'autotask_create_company',
+            'autotask_update_company',
+            'autotask_update_company_site_configuration',
+            'autotask_create_contact',
+            'autotask_update_contact',
+            'autotask_create_ticket',
+            'autotask_update_ticket',
+            'autotask_create_ticket_charge',
+            'autotask_update_ticket_charge',
+            'autotask_delete_ticket_charge',
+            'autotask_create_time_entry',
+            'autotask_create_project',
+            'autotask_update_project',
+            'autotask_create_ticket_note',
+            'autotask_create_ticket_checklist_item',
+            'autotask_update_ticket_checklist_item',
+            'autotask_delete_ticket_checklist_item',
+            'autotask_create_project_note',
+            'autotask_create_company_note',
+            'autotask_create_ticket_attachment',
+            'autotask_create_expense_report',
+            'autotask_create_expense_item',
+            'autotask_create_quote',
+            'autotask_create_opportunity',
+            'autotask_create_quote_item',
+            'autotask_update_quote_item',
+            'autotask_delete_quote_item',
+            'autotask_create_task',
+            'autotask_create_phase',
+            'autotask_create_service_call',
+            'autotask_update_service_call',
+            'autotask_delete_service_call',
+            'autotask_create_service_call_ticket',
+            'autotask_delete_service_call_ticket',
+            'autotask_create_service_call_ticket_resource',
+            'autotask_delete_service_call_ticket_resource',
+            'autotask_create_contract',
+            'autotask_create_contracts_bulk',
+            'autotask_update_contract',
+            'autotask_create_contract_service',
+            'autotask_update_contract_service',
+            'autotask_execute_tool',
+            'autotask_raw_request',
+          ],
         },
       }
     : {}),

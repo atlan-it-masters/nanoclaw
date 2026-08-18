@@ -225,6 +225,23 @@ RUN --mount=type=secret,id=npm_auth_token \
     chmod +x /usr/local/bin/autotask-mcp && \
     chmod -R a+rX /opt/autotask-mcp
 
+# ---- Cove Data Protection MCP server (Go, stdio) -------------------------------
+# msp-skills/skills/cove ships prebuilt Go binaries via GitHub Releases
+# (cove-v0.1.4) with published sha256 checksums — same shape as
+# mcp-server-wazuh above, no build toolchain needed. `cove-mcp` shells out to
+# a companion `cove-cli` binary at runtime (sibling-directory lookup, PATH, or
+# COVE_CLI_PATH) — both binaries are required, not just cove-mcp; installing
+# only the MCP binary fails every tool call with "companion CLI binary not
+# found", not at startup. Installing both into /usr/local/bin as siblings
+# satisfies the sibling lookup.
+RUN curl -fsSL -o /usr/local/bin/cove-mcp \
+      https://github.com/Servosity/msp-skills/releases/download/cove-v0.1.4/cove-mcp-linux-amd64 && \
+    echo "51aa5b1cd73e0a09812b284c783d529359cb17e6f94da631635b71f2ce01db35  /usr/local/bin/cove-mcp" | sha256sum -c - && \
+    curl -fsSL -o /usr/local/bin/cove-cli \
+      https://github.com/Servosity/msp-skills/releases/download/cove-v0.1.4/cove-cli-linux-amd64 && \
+    echo "3433d8ba21da1c32c038bf50841f9dfd4edd3210b7dedf974693915063813a29  /usr/local/bin/cove-cli" | sha256sum -c - && \
+    chmod +x /usr/local/bin/cove-mcp /usr/local/bin/cove-cli
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

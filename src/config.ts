@@ -59,6 +59,9 @@ const envConfig = readEnvFile([
   'AUTOTASK_SECRET',
   'AUTOTASK_INTEGRATION_CODE',
   'AUTOTASK_ENHANCE_CONCURRENCY',
+  'COVE_PARTNER',
+  'COVE_USERNAME',
+  'COVE_PASSWORD',
 ]);
 
 /**
@@ -207,10 +210,12 @@ const veeamAcceptSelfSignedCert =
   process.env.VEEAM_ACCEPT_SELF_SIGNED_CERT || envConfig.VEEAM_ACCEPT_SELF_SIGNED_CERT || 'false';
 const autotaskUsername = process.env.AUTOTASK_USERNAME || envConfig.AUTOTASK_USERNAME;
 const autotaskSecret = process.env.AUTOTASK_SECRET || envConfig.AUTOTASK_SECRET;
-const autotaskIntegrationCode =
-  process.env.AUTOTASK_INTEGRATION_CODE || envConfig.AUTOTASK_INTEGRATION_CODE;
+const autotaskIntegrationCode = process.env.AUTOTASK_INTEGRATION_CODE || envConfig.AUTOTASK_INTEGRATION_CODE;
 const autotaskEnhanceConcurrency =
   process.env.AUTOTASK_ENHANCE_CONCURRENCY || envConfig.AUTOTASK_ENHANCE_CONCURRENCY || '3';
+const covePartner = process.env.COVE_PARTNER || envConfig.COVE_PARTNER;
+const coveUsername = process.env.COVE_USERNAME || envConfig.COVE_USERNAME;
+const covePassword = process.env.COVE_PASSWORD || envConfig.COVE_PASSWORD;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -560,6 +565,35 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             'autotask_execute_tool',
             'autotask_raw_request',
           ],
+        },
+      }
+    : {}),
+  // Prebuilt Go binaries from the skill's pinned GitHub release (cove-v0.1.4),
+  // sha256-verified — same shape as the Wazuh binary above. `cove-mcp` shells
+  // out to a companion `cove-cli` binary at runtime (same directory, PATH, or
+  // COVE_CLI_PATH) — both binaries must be installed side by side, verified
+  // by testing the actual stdio process, not just that cove-mcp starts.
+  // 33 tools, mostly enumerate/get/list against Cove's read-only management
+  // API (restores/file browsing aren't covered by this API surface at all).
+  // Two are blocked: `call` (the vendor's own README flags this as
+  // "Human-in-the-loop" — a generic JSON-RPC invoker reaching any of 251
+  // methods, "including the few that mutate") and `import` (issues a live
+  // POST per JSONL record — not called out in the README's safety table, but
+  // functionally the same class of tenant-mutating escape hatch as `call`).
+  // `sync`/`snapshot`/`workflow_archive`/`sql` stay allowed — the vendor
+  // explicitly documents these as writing only to the local SQLite mirror,
+  // never the tenant.
+  ...(covePartner && coveUsername && covePassword
+    ? {
+        cove: {
+          command: 'cove-mcp',
+          args: [],
+          env: {
+            COVE_PARTNER: covePartner,
+            COVE_USERNAME: coveUsername,
+            COVE_PASSWORD: covePassword,
+          },
+          deniedTools: ['call', 'import'],
         },
       }
     : {}),

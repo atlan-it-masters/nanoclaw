@@ -223,6 +223,7 @@ own credentials have no read-only scope:
 | `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
 | `uptime-kuma` | `createMonitor`, `updateMonitor`, `deleteMonitor`, `addNotification`, `updateNotification`, `deleteNotification`, `addTag`, `deleteTag`, `createMaintenance`, `addDockerHost`, `updateDockerHost`, `deleteDockerHost`, `createStatusPage`, `updateStatusPage`, `deleteStatusPage`, `pauseMonitor`, `resumeMonitor` |
 | `autotask` | All 41 `autotask_create_*`/`autotask_update_*`/`autotask_delete_*` tools, plus `autotask_execute_tool` and `autotask_raw_request` — see below |
+| `cove` | `call`, `import` — see below |
 
 Not restricted: `m365mail` and `bookstack` (already read-only at the
 source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the
@@ -250,6 +251,17 @@ alone would do nothing to stop `autotask_execute_tool({toolName:
 `autotask_router` stays allowed — verified in source
 (`src/handlers/tool.handler.ts`) that it only returns a suggested-tool-name
 object and never itself dispatches to a handler.
+
+**`cove`'s API user has no read-only role option**, so the same
+generic-escape-hatch reasoning applies: `call` invokes any of Cove's 251
+JSON-RPC methods by name (the vendor's own README already classifies this as
+"Human-in-the-loop; preview with `--dry-run`" for that reason) and `import`
+issues a live POST per JSONL record — a bulk-write path the README's safety
+table doesn't even mention, found only by reading the tool's actual
+description. The other 31 tools are enumerate/get/list against Cove's
+management API (which doesn't cover restores or file browsing at all) or
+local-only writes to the SQLite mirror (`sync`, `snapshot`,
+`workflow_archive`) that never touch the tenant — left unrestricted.
 
 ## Resource Limits
 

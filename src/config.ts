@@ -30,6 +30,7 @@ const envConfig = readEnvFile([
   'MS365_MAIL_CLIENT_SECRET',
   'SENTINELONE_CONSOLE_BASE_URL',
   'SENTINELONE_API_TOKEN',
+  'UNIFI_API_KEY',
 ]);
 
 /**
@@ -132,6 +133,7 @@ const ms365MailClientId = process.env.MS365_MAIL_CLIENT_ID || envConfig.MS365_MA
 const ms365MailClientSecret = process.env.MS365_MAIL_CLIENT_SECRET || envConfig.MS365_MAIL_CLIENT_SECRET;
 const sentineloneConsoleBaseUrl = process.env.SENTINELONE_CONSOLE_BASE_URL || envConfig.SENTINELONE_CONSOLE_BASE_URL;
 const sentineloneApiToken = process.env.SENTINELONE_API_TOKEN || envConfig.SENTINELONE_API_TOKEN;
+const unifiApiKey = process.env.UNIFI_API_KEY || envConfig.UNIFI_API_KEY;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -201,6 +203,22 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
           headers: {
             'x-purplemcp-token': sentineloneApiToken,
             'x-purplemcp-base-url': sentineloneConsoleBaseUrl,
+          },
+        },
+      }
+    : {}),
+  // PyPI package (unifi-mcp-server), installed into the agent image via uv
+  // (see container/Dockerfile) since the base image is Node-only. Pinned to
+  // cloud-ea per the operator's request — Early Access API, api.ui.com/ea/*,
+  // lower rate limit (100 req/min) than the stable cloud-v1 API.
+  ...(unifiApiKey
+    ? {
+        unifi: {
+          command: 'unifi-mcp-server',
+          args: [],
+          env: {
+            UNIFI_API_KEY: unifiApiKey,
+            UNIFI_API_TYPE: 'cloud-ea',
           },
         },
       }

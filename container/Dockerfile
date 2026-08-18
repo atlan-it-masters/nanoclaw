@@ -134,6 +134,21 @@ RUN --mount=type=cache,target=/root/.cache/pnpm \
 COPY ms365-mail-mcp-wrapper.js /usr/local/bin/ms365-mail-mcp-wrapper.js
 RUN chmod +x /usr/local/bin/ms365-mail-mcp-wrapper.js
 
+# ---- UniFi MCP server (Python, stdio) -----------------------------------------
+# unifi-mcp-server is a PyPI package; this image is Node-only, so install it
+# via uv's isolated tool environments (auto-downloads its own Python — no
+# system python3/pip needed) rather than pulling in a full apt toolchain.
+# UV_TOOL_BIN_DIR lands the console-script shim in /usr/local/bin alongside
+# uv itself and everything else spawned as an MCP stdio command. UV_TOOL_DIR
+# and UV_PYTHON_INSTALL_DIR keep both the venv AND uv's own managed-Python
+# download out of /root — this RUN executes as root (USER node is set later,
+# below), and the venv's python symlink chains through the managed-Python
+# dir too, so both need to be relocated or the node user can't exec either.
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh && \
+    UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+      /usr/local/bin/uv tool install unifi-mcp-server==0.2.5 && \
+    chmod -R a+rX /opt/uv-tools /opt/uv-python
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

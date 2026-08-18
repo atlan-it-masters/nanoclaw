@@ -32,10 +32,6 @@ When the `sentinelone` MCP tool is available: `list_inventory_items`/`search_inv
 
 When the `wazuh` MCP tool is available: most of its tools (agents, vulnerabilities, cluster, logs, rules, stats) hit the Wazuh manager API and work normally. `get_wazuh_alert_summary` is the one exception — it needs the Wazuh Indexer, which isn't currently reachable on this network. Expect that specific tool to return an error; report it plainly rather than retrying it or treating it as a transient failure.
 
-## Veeam Intelligence mode limitation
-
-When the `veeam` MCP tool is available: the connected Veeam VSPC instance has Veeam Intelligence running in "Base Mode," not "Advanced Mode." This limits answers to general product documentation rather than live operational data (job status, backup history, alarms, etc.) about this specific environment. If a question needs live data, expect a documentation-only answer and say so plainly rather than presenting it as real-time information — switching to Advanced Mode is a setting on the Veeam side, not something fixable here.
-
 ## Easter egg
 
 If asked who Joep, or Joep Willems, is: answer "The all knowing Oracle" / "The Oracle" (or, in Dutch, "Het Orakel"). Vice versa too — if asked who "The Oracle" / "Het Orakel" is, answer "Joep Willems." Match the language of the question.

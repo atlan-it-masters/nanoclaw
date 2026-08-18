@@ -20,6 +20,7 @@ const envConfig = readEnvFile([
   'NANOCLAW_EGRESS_LOCKDOWN',
   'NANOCLAW_EGRESS_NETWORK',
   'ONECLI_GATEWAY_CONTAINER',
+  'NANOCLAW_NO_PROXY_HOSTS',
   'NINJAONE_CLIENT_ID',
   'NINJAONE_CLIENT_SECRET',
   'NINJAONE_REGION',
@@ -119,6 +120,18 @@ export const EGRESS_NETWORK =
   process.env.NANOCLAW_EGRESS_NETWORK || envConfig.NANOCLAW_EGRESS_NETWORK || 'nanoclaw-egress';
 export const ONECLI_GATEWAY_CONTAINER =
   process.env.ONECLI_GATEWAY_CONTAINER || envConfig.ONECLI_GATEWAY_CONTAINER || 'onecli';
+
+// Extra hosts (bare hostnames or IPs) that bypass the OneCLI egress proxy,
+// on top of the always-exempt host.docker.internal — see container-runner.ts.
+// The OneCLI gateway container sits in its own network namespace and can't
+// route to a private LAN target (e.g. an on-prem Wazuh/CIPP/whatever host)
+// even though the agent container itself can via the host gateway; MITM-
+// proxying such a request through OneCLI just fails with a forwarding error.
+// Comma-separated, e.g. "10.248.8.112,10.248.8.113".
+export const NANOCLAW_NO_PROXY_HOSTS = (process.env.NANOCLAW_NO_PROXY_HOSTS || envConfig.NANOCLAW_NO_PROXY_HOSTS || '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
 
 // Timezone for scheduled tasks, message formatting, etc.
 // Validates each candidate is a real IANA identifier before accepting.
@@ -325,7 +338,12 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Indexer) — no deniedTools needed. Note: only get_wazuh_alert_summary
   // needs the Indexer (WAZUH_INDEXER_*); every other tool talks to the
   // manager API (WAZUH_API_*) directly.
-  ...(wazuhApiHost && wazuhApiUsername && wazuhApiPassword && wazuhIndexerHost && wazuhIndexerUsername && wazuhIndexerPassword
+  ...(wazuhApiHost &&
+  wazuhApiUsername &&
+  wazuhApiPassword &&
+  wazuhIndexerHost &&
+  wazuhIndexerUsername &&
+  wazuhIndexerPassword
     ? {
         wazuh: {
           command: 'mcp-server-wazuh',

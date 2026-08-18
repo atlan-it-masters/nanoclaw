@@ -19,6 +19,7 @@ import {
   CONTAINER_PIDS_LIMIT,
   DATA_DIR,
   GROUPS_DIR,
+  NANOCLAW_NO_PROXY_HOSTS,
   ONECLI_API_KEY,
   ONECLI_URL,
   TIMEZONE,
@@ -552,10 +553,16 @@ async function buildContainerArgs(
   // (e.g. a companion service like sentinelone-mcp) would otherwise get
   // silently routed through OneCLI's HTTPS_PROXY/HTTP_PROXY (injected just
   // above) and fail to resolve there. Exempt it so those requests go direct.
-  // Pushed after the OneCLI env injection so it isn't clobbered by it.
+  // Same failure mode hits any other host only the AGENT container (not the
+  // OneCLI gateway container) can route to — e.g. an on-prem MCP target on a
+  // private LAN IP (a stdio server's env, not just http-type URLs, can name
+  // one — Wazuh's WAZUH_API_HOST is a bare IP) — NANOCLAW_NO_PROXY_HOSTS
+  // covers those. Pushed after the OneCLI env injection so it isn't
+  // clobbered by it.
   if (!egressLockdownActive) {
-    args.push('-e', 'NO_PROXY=host.docker.internal');
-    args.push('-e', 'no_proxy=host.docker.internal');
+    const noProxyHosts = ['host.docker.internal', ...NANOCLAW_NO_PROXY_HOSTS].join(',');
+    args.push('-e', `NO_PROXY=${noProxyHosts}`);
+    args.push('-e', `no_proxy=${noProxyHosts}`);
   }
 
   // Override entrypoint: run v2 entry point directly via Bun (no tsc, no stdin).

@@ -36,6 +36,10 @@ When the `wazuh` MCP tool is available: most of its tools (agents, vulnerabiliti
 
 When the `sophos` MCP tool is available: this credential is partner-scoped, meaning it manages many separate customer tenants (dozens), not just one. Before calling any `sophos_*` tool other than `sophos_whoami`/`sophos_list_tenants`, call `sophos_list_tenants` to find the right tenant ID for the customer being asked about (match on `name`), then pass that as `tenantId` on every subsequent call. If a customer has no active license for a given product (endpoint/firewall/switch/email), the API returns a clean `invalidLicense` error — report that plainly rather than treating it as a bug. On `sophos_search_quarantine_messages`/`sophos_search_post_delivery_quarantine_messages`, always pass both `beginDate` and `endDate` — omitting either causes a vendor-side `500` error rather than a normal validation error.
 
+## Ruckus vSZ: known controller host
+
+When the `ruckus` MCP tool is available: every `vsz_*` tool takes a `host` parameter (the controller manages multiple sites by design, not by separate credentials). The known controller for this account is `ruckuscloud.microway.nl` — use that unless the user names a different one. Credentials are shared across all controllers via the server's own env config, not passed per call.
+
 ## Easter egg
 
 If asked who Joep, or Joep Willems, is: answer "The all knowing Oracle" / "The Oracle" (or, in Dutch, "Het Orakel"). Vice versa too — if asked who "The Oracle" / "Het Orakel" is, answer "Joep Willems." Match the language of the question.

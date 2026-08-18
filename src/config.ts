@@ -64,6 +64,9 @@ const envConfig = readEnvFile([
   'COVE_PASSWORD',
   'SOPHOS_CLIENT_ID',
   'SOPHOS_CLIENT_SECRET',
+  'VSZ_USERNAME',
+  'VSZ_PASSWORD',
+  'VSZ_VERIFY_SSL',
 ]);
 
 /**
@@ -220,6 +223,9 @@ const coveUsername = process.env.COVE_USERNAME || envConfig.COVE_USERNAME;
 const covePassword = process.env.COVE_PASSWORD || envConfig.COVE_PASSWORD;
 const sophosClientId = process.env.SOPHOS_CLIENT_ID || envConfig.SOPHOS_CLIENT_ID;
 const sophosClientSecret = process.env.SOPHOS_CLIENT_SECRET || envConfig.SOPHOS_CLIENT_SECRET;
+const vszUsername = process.env.VSZ_USERNAME || envConfig.VSZ_USERNAME;
+const vszPassword = process.env.VSZ_PASSWORD || envConfig.VSZ_PASSWORD;
+const vszVerifySsl = process.env.VSZ_VERIFY_SSL || envConfig.VSZ_VERIFY_SSL || 'false';
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -618,6 +624,47 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             SOPHOS_CLIENT_ID: sophosClientId,
             SOPHOS_CLIENT_SECRET: sophosClientSecret,
           },
+        },
+      }
+    : {}),
+  // Installed via `uv tool install` from a pinned git commit (not on PyPI) —
+  // see container/Dockerfile for the `mcp<2` pin this repo's own
+  // pyproject.toml is missing (an unbounded `mcp>=1.2.0` resolves to a
+  // breaking 2.0.0 otherwise). `host` is a per-tool-call parameter, not an
+  // env var — this one credential manages multiple vSZ controllers by
+  // design; see container/CLAUDE.md for the known host. No vendor read-only
+  // mode exists, so deniedTools blocks every create/update/delete/reboot/
+  // disconnect/block/acknowledge tool (17 of 53).
+  ...(vszUsername && vszPassword
+    ? {
+        ruckus: {
+          command: 'ruckus-vsz-mcp',
+          args: [],
+          env: {
+            VSZ_USERNAME: vszUsername,
+            VSZ_PASSWORD: vszPassword,
+            VSZ_VERIFY_SSL: vszVerifySsl,
+            MCP_TRANSPORT: 'stdio',
+          },
+          deniedTools: [
+            'vsz_create_zone',
+            'vsz_update_zone',
+            'vsz_delete_zone',
+            'vsz_update_ap',
+            'vsz_delete_ap',
+            'vsz_reboot_ap',
+            'vsz_create_wlan',
+            'vsz_update_wlan',
+            'vsz_delete_wlan',
+            'vsz_enable_disable_wlan',
+            'vsz_disconnect_client',
+            'vsz_acknowledge_alarm',
+            'vsz_clear_alarm',
+            'vsz_create_domain',
+            'vsz_block_client',
+            'vsz_unblock_client',
+            'vsz_mark_rogue',
+          ],
         },
       }
     : {}),

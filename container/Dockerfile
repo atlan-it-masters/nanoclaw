@@ -259,6 +259,21 @@ RUN git clone https://github.com/atlan-it-masters/NC_sophos-central-mcp.git /opt
     chmod +x /usr/local/bin/sophos-central-mcp && \
     chmod -R a+rX /opt/sophos-mcp
 
+# ---- Ruckus vSZ MCP server (Python, stdio) -------------------------------------
+# Not published to PyPI — installed straight from the pinned git commit via
+# `uv tool install`, same isolated-environment shape as unifi-mcp-server above
+# (uv itself is already on PATH from that step). `--with 'mcp<2'` overrides a
+# real bug in this repo's own pyproject.toml: it declares `mcp>=1.2.0` with no
+# upper bound, and the current latest `mcp` (2.0.0) renamed/restructured
+# `mcp.server.fastmcp` — installing without the pin makes every tool call
+# crash with `ModuleNotFoundError`. Verified end-to-end against the real
+# controller with this pin (mcp==1.29.0 resolves) before trusting it.
+ARG RUCKUS_VSZ_MCP_REF=9a569f0a49308f559913d7b65b1fadbda64c4c30
+RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+      /usr/local/bin/uv tool install --with 'mcp<2' \
+      "git+https://github.com/atlan-it-masters/NC_Ruckus-vSZ-MCP.git@${RUCKUS_VSZ_MCP_REF}" && \
+    chmod -R a+rX /opt/uv-tools /opt/uv-python
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

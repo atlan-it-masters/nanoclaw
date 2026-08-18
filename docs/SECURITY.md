@@ -224,6 +224,7 @@ own credentials have no read-only scope:
 | `uptime-kuma` | `createMonitor`, `updateMonitor`, `deleteMonitor`, `addNotification`, `updateNotification`, `deleteNotification`, `addTag`, `deleteTag`, `createMaintenance`, `addDockerHost`, `updateDockerHost`, `deleteDockerHost`, `createStatusPage`, `updateStatusPage`, `deleteStatusPage`, `pauseMonitor`, `resumeMonitor` |
 | `autotask` | All 41 `autotask_create_*`/`autotask_update_*`/`autotask_delete_*` tools, plus `autotask_execute_tool` and `autotask_raw_request` — see below |
 | `cove` | `call`, `import` — see below |
+| `ruckus` | `vsz_create_zone`, `vsz_update_zone`, `vsz_delete_zone`, `vsz_update_ap`, `vsz_delete_ap`, `vsz_reboot_ap`, `vsz_create_wlan`, `vsz_update_wlan`, `vsz_delete_wlan`, `vsz_enable_disable_wlan`, `vsz_disconnect_client`, `vsz_acknowledge_alarm`, `vsz_clear_alarm`, `vsz_create_domain`, `vsz_block_client`, `vsz_unblock_client`, `vsz_mark_rogue` |
 
 Not restricted: `m365mail` and `bookstack` (already read-only at the
 source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the

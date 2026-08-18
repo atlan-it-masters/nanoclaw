@@ -222,11 +222,13 @@ own credentials have no read-only scope:
 | `itglue` | `create_location`, `update_location`, `create_document`, `create_document_section`, `update_document_section`, `delete_document_section`, `publish_document`, `archive_document`, `unarchive_document` |
 | `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
 
-Not restricted: `m365mail` (already read-only at the source via
-`--enabled-tools` on the underlying package), `learn`, `sentinelone`, and
-`wazuh` (entirely read/query tools by design, nothing to block), `unifi`
-(the `cloud-ea` tool set registered is read/reporting-only — no
-device-control tools exist in that mode).
+Not restricted: `m365mail` and `bookstack` (already read-only at the
+source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the
+underlying package; for bookstack verified directly by diffing `tools/list`
+with the flag on vs off, 38 tools vs 20, not just trusting the README),
+`learn`, `sentinelone`, and `wazuh` (entirely read/query tools by design,
+nothing to block), `unifi` (the `cloud-ea` tool set registered is
+read/reporting-only — no device-control tools exist in that mode).
 
 `itglue`'s `get_password`/`search_passwords` are intentionally **not**
 blocked — they read a value rather than mutate anything, so they're a

@@ -45,6 +45,9 @@ const envConfig = readEnvFile([
   'WAZUH_INDEXER_USERNAME',
   'WAZUH_INDEXER_PASSWORD',
   'WAZUH_VERIFY_SSL',
+  'BOOKSTACK_BASE_URL',
+  'BOOKSTACK_TOKEN_ID',
+  'BOOKSTACK_TOKEN_SECRET',
 ]);
 
 /**
@@ -173,6 +176,12 @@ const wazuhIndexerPort = process.env.WAZUH_INDEXER_PORT || envConfig.WAZUH_INDEX
 const wazuhIndexerUsername = process.env.WAZUH_INDEXER_USERNAME || envConfig.WAZUH_INDEXER_USERNAME;
 const wazuhIndexerPassword = process.env.WAZUH_INDEXER_PASSWORD || envConfig.WAZUH_INDEXER_PASSWORD;
 const wazuhVerifySsl = process.env.WAZUH_VERIFY_SSL || envConfig.WAZUH_VERIFY_SSL || 'false';
+// Strip a trailing slash — bookstack-mcp concatenates BASE_URL + '/api/...'
+// verbatim, so a trailing slash produces a double slash (e.g.
+// atlan.help//api/books) that 404s. Confirmed directly against the real API.
+const bookstackBaseUrl = (process.env.BOOKSTACK_BASE_URL || envConfig.BOOKSTACK_BASE_URL)?.replace(/\/+$/, '');
+const bookstackTokenId = process.env.BOOKSTACK_TOKEN_ID || envConfig.BOOKSTACK_TOKEN_ID;
+const bookstackTokenSecret = process.env.BOOKSTACK_TOKEN_SECRET || envConfig.BOOKSTACK_TOKEN_SECRET;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -358,6 +367,25 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             WAZUH_INDEXER_USERNAME: wazuhIndexerUsername,
             WAZUH_INDEXER_PASSWORD: wazuhIndexerPassword,
             WAZUH_VERIFY_SSL: wazuhVerifySsl,
+          },
+        },
+      }
+    : {}),
+  // Installed via pnpm (container/cli-tools.json), a plain public npm
+  // package. Write tools are genuinely gated at the source — verified by
+  // diffing tools/list with BOOKSTACK_ENABLE_WRITE on vs off (20 tools vs
+  // 38, not just a documented default) — so BOOKSTACK_ENABLE_WRITE=false is
+  // set explicitly here rather than relying on the package's own default.
+  ...(bookstackBaseUrl && bookstackTokenId && bookstackTokenSecret
+    ? {
+        bookstack: {
+          command: 'bookstack-mcp',
+          args: [],
+          env: {
+            BOOKSTACK_BASE_URL: bookstackBaseUrl,
+            BOOKSTACK_TOKEN_ID: bookstackTokenId,
+            BOOKSTACK_TOKEN_SECRET: bookstackTokenSecret,
+            BOOKSTACK_ENABLE_WRITE: 'false',
           },
         },
       }

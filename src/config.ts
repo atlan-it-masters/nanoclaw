@@ -31,6 +31,10 @@ const envConfig = readEnvFile([
   'SENTINELONE_CONSOLE_BASE_URL',
   'SENTINELONE_API_TOKEN',
   'UNIFI_API_KEY',
+  'CIPP_BASE_URL',
+  'CIPP_TENANT_ID',
+  'CIPP_CLIENT_ID',
+  'CIPP_CLIENT_SECRET',
 ]);
 
 /**
@@ -134,6 +138,10 @@ const ms365MailClientSecret = process.env.MS365_MAIL_CLIENT_SECRET || envConfig.
 const sentineloneConsoleBaseUrl = process.env.SENTINELONE_CONSOLE_BASE_URL || envConfig.SENTINELONE_CONSOLE_BASE_URL;
 const sentineloneApiToken = process.env.SENTINELONE_API_TOKEN || envConfig.SENTINELONE_API_TOKEN;
 const unifiApiKey = process.env.UNIFI_API_KEY || envConfig.UNIFI_API_KEY;
+const cippBaseUrl = process.env.CIPP_BASE_URL || envConfig.CIPP_BASE_URL;
+const cippTenantId = process.env.CIPP_TENANT_ID || envConfig.CIPP_TENANT_ID;
+const cippClientId = process.env.CIPP_CLIENT_ID || envConfig.CIPP_CLIENT_ID;
+const cippClientSecret = process.env.CIPP_CLIENT_SECRET || envConfig.CIPP_CLIENT_SECRET;
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -219,6 +227,25 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
           env: {
             UNIFI_API_KEY: unifiApiKey,
             UNIFI_API_TYPE: 'cloud-ea',
+          },
+        },
+      }
+    : {}),
+  // Built from source into the agent image (see container/Dockerfile) —
+  // cipp-mcp isn't published to a package registry yet. OAuth client-
+  // credentials against the CIPP Azure Function App backend; CIPP_BASE_URL
+  // must be the Function App URL (*.azurewebsites.net), never the SWA/
+  // frontend URL.
+  ...(cippBaseUrl && cippTenantId && cippClientId && cippClientSecret
+    ? {
+        cipp: {
+          command: 'cipp-mcp',
+          args: [],
+          env: {
+            CIPP_BASE_URL: cippBaseUrl,
+            CIPP_TENANT_ID: cippTenantId,
+            CIPP_CLIENT_ID: cippClientId,
+            CIPP_CLIENT_SECRET: cippClientSecret,
           },
         },
       }

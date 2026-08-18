@@ -149,6 +149,26 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin s
       /usr/local/bin/uv tool install unifi-mcp-server==0.2.5 && \
     chmod -R a+rX /opt/uv-tools /opt/uv-python
 
+# ---- CIPP MCP server (Node, stdio) --------------------------------------------
+# cipp-mcp isn't published to any package registry yet — only as a Docker image
+# (ghcr.io/wyre-technology/cipp-mcp) — so it doesn't fit cli-tools.json (pnpm
+# packages only). Plain TypeScript/Node with no native deps, so build it from
+# source at a pinned commit instead of standing up a second companion
+# container like sentinelone-mcp needed. Defaults to stdio transport already
+# (MCP_TRANSPORT unset), so no extra env is needed to run it that way.
+# chmod -R a+rX matters here too: this RUN is root, the agent runs as node.
+ARG CIPP_MCP_REF=099a3e27e1d40df90955855140c7c8acba930a2c
+RUN git clone https://github.com/atlan-it-masters/NC_cipp-mcp.git /opt/cipp-mcp && \
+    cd /opt/cipp-mcp && \
+    git checkout "${CIPP_MCP_REF}" && \
+    npm ci --ignore-scripts && \
+    npm run build && \
+    npm prune --omit=dev && \
+    rm -rf .git && \
+    printf '#!/bin/sh\nexec node /opt/cipp-mcp/dist/entry.js "$@"\n' > /usr/local/bin/cipp-mcp && \
+    chmod +x /usr/local/bin/cipp-mcp && \
+    chmod -R a+rX /opt/cipp-mcp
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

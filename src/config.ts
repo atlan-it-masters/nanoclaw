@@ -50,6 +50,11 @@ const envConfig = readEnvFile([
   'BOOKSTACK_TOKEN_SECRET',
   'UPTIME_KUMA_URL',
   'UPTIME_KUMA_JWT_TOKEN',
+  'VEEAM_PRODUCT_NAME',
+  'VEEAM_WEB_URL',
+  'VEEAM_ADMIN_USERNAME',
+  'VEEAM_ADMIN_PASSWORD',
+  'VEEAM_ACCEPT_SELF_SIGNED_CERT',
 ]);
 
 /**
@@ -186,6 +191,16 @@ const bookstackTokenId = process.env.BOOKSTACK_TOKEN_ID || envConfig.BOOKSTACK_T
 const bookstackTokenSecret = process.env.BOOKSTACK_TOKEN_SECRET || envConfig.BOOKSTACK_TOKEN_SECRET;
 const uptimeKumaUrl = process.env.UPTIME_KUMA_URL || envConfig.UPTIME_KUMA_URL;
 const uptimeKumaJwtToken = process.env.UPTIME_KUMA_JWT_TOKEN || envConfig.UPTIME_KUMA_JWT_TOKEN;
+// Prefixed VEEAM_ at the .env/config layer since the package's own env var
+// names (PRODUCT_NAME, WEB_URL, ADMIN_USERNAME, ADMIN_PASSWORD) are generic
+// enough to collide with a future integration; translated back to the bare
+// names the package actually expects when building its env block below.
+const veeamProductName = process.env.VEEAM_PRODUCT_NAME || envConfig.VEEAM_PRODUCT_NAME;
+const veeamWebUrl = process.env.VEEAM_WEB_URL || envConfig.VEEAM_WEB_URL;
+const veeamAdminUsername = process.env.VEEAM_ADMIN_USERNAME || envConfig.VEEAM_ADMIN_USERNAME;
+const veeamAdminPassword = process.env.VEEAM_ADMIN_PASSWORD || envConfig.VEEAM_ADMIN_PASSWORD;
+const veeamAcceptSelfSignedCert =
+  process.env.VEEAM_ACCEPT_SELF_SIGNED_CERT || envConfig.VEEAM_ACCEPT_SELF_SIGNED_CERT || 'false';
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -434,6 +449,32 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             'pauseMonitor',
             'resumeMonitor',
           ],
+        },
+      }
+    : {}),
+  // Built from source into the agent image (see container/Dockerfile) — not
+  // published to any package registry. No deniedTools needed: unlike every
+  // other integration here, this exposes exactly one tool
+  // (veeam-question-answering, natural-language Q&A) and no per-object
+  // CRUD tools exist at all, so there's nothing destructive to block.
+  // PRODUCT_NAME must be one of vbr | vone | vspc (validated by the package
+  // itself). Note: verified end-to-end with a real question — auth works,
+  // but the connected instance is running Veeam Intelligence in "Base
+  // Mode" (documentation-only answers), not "Advanced Mode" (live
+  // operational data) — that's a setting on the Veeam product side, not
+  // fixable here. See container/CLAUDE.md.
+  ...(veeamProductName && veeamWebUrl && veeamAdminUsername && veeamAdminPassword
+    ? {
+        veeam: {
+          command: 'veeam-mcp',
+          args: [],
+          env: {
+            PRODUCT_NAME: veeamProductName,
+            WEB_URL: veeamWebUrl,
+            ADMIN_USERNAME: veeamAdminUsername,
+            ADMIN_PASSWORD: veeamAdminPassword,
+            ACCEPT_SELF_SIGNED_CERT: veeamAcceptSelfSignedCert,
+          },
         },
       }
     : {}),

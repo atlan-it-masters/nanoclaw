@@ -182,6 +182,21 @@ RUN curl -fsSL -o /usr/local/bin/mcp-server-wazuh \
     echo "8a18cb44007d4834ee77ae8975355f404c49bda8c0d686e534994e3514134834  /usr/local/bin/mcp-server-wazuh" | sha256sum -c - && \
     chmod +x /usr/local/bin/mcp-server-wazuh
 
+# ---- Veeam Intelligence MCP server (Node, stdio) -------------------------------
+# veeam-intelligence-mcp-server isn't published to any package registry —
+# build it from source at a pinned commit, same shape as cipp-mcp above.
+ARG VEEAM_MCP_REF=929c4cc239f39157f3e3aefe207953fcea38c8c4
+RUN git clone https://github.com/atlan-it-masters/NC_veeam-mcp-server.git /opt/veeam-mcp && \
+    cd /opt/veeam-mcp && \
+    git checkout "${VEEAM_MCP_REF}" && \
+    npm ci && \
+    npm run build && \
+    npm prune --omit=dev && \
+    rm -rf .git && \
+    printf '#!/bin/sh\nexec node /opt/veeam-mcp/build/index.js "$@"\n' > /usr/local/bin/veeam-mcp && \
+    chmod +x /usr/local/bin/veeam-mcp && \
+    chmod -R a+rX /opt/veeam-mcp
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

@@ -229,7 +229,8 @@ underlying package; for bookstack verified directly by diffing `tools/list`
 with the flag on vs off, 38 tools vs 20, not just trusting the README),
 `learn`, `sentinelone`, and `wazuh` (entirely read/query tools by design,
 nothing to block), `unifi` (the `cloud-ea` tool set registered is
-read/reporting-only — no device-control tools exist in that mode).
+read/reporting-only — no device-control tools exist in that mode), and
+`veeam` (a single Q&A tool with no CRUD surface at all).
 
 `itglue`'s `get_password`/`search_passwords` are intentionally **not**
 blocked — they read a value rather than mutate anything, so they're a

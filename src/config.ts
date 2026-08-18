@@ -148,6 +148,11 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
     type: 'http',
     url: 'https://learn.microsoft.com/api/mcp',
   },
+  // NinjaOne's own API token can't be scoped read-only, so the read/write
+  // split is enforced here instead: deniedTools blocks every mutating tool
+  // (device reboot, org creation, alert resets, ticket create/update/comment)
+  // — verified via a real disallowedTools test that this genuinely hides the
+  // tool from the model, not just discourages calling it.
   ...(ninjaoneClientId && ninjaoneClientSecret
     ? {
         ninjaone: {
@@ -158,9 +163,22 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             NINJAONE_CLIENT_SECRET: ninjaoneClientSecret,
             NINJAONE_REGION: ninjaoneRegion,
           },
+          deniedTools: [
+            'ninjaone_devices_reboot',
+            'ninjaone_organizations_create',
+            'ninjaone_alerts_reset',
+            'ninjaone_alerts_reset_all',
+            'ninjaone_tickets_create',
+            'ninjaone_tickets_update',
+            'ninjaone_tickets_add_comment',
+          ],
         },
       }
     : {}),
+  // Same reasoning as ninjaone above — IT Glue's API key has no read-only
+  // scope either. Blocks create/update/delete/publish/archive on locations
+  // and documents. get_password/search_passwords stay reachable (they read,
+  // not write) — that's a data-sensitivity question, not a mutation risk.
   ...(itglueApiKey
     ? {
         itglue: {
@@ -170,6 +188,17 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             ITGLUE_API_KEY: itglueApiKey,
             ITGLUE_REGION: itglueRegion,
           },
+          deniedTools: [
+            'create_location',
+            'update_location',
+            'create_document',
+            'create_document_section',
+            'update_document_section',
+            'delete_document_section',
+            'publish_document',
+            'archive_document',
+            'unarchive_document',
+          ],
         },
       }
     : {}),
@@ -247,6 +276,28 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             CIPP_CLIENT_ID: cippClientId,
             CIPP_CLIENT_SECRET: cippClientSecret,
           },
+          // CIPP itself marks its mutating tools destructiveHint:true, but
+          // that's an MCP annotation — a hint the model can see, not
+          // something any client is forced to obey. Blocks every
+          // create/edit/disable/reset/revoke/offboard/set_*/delete tool,
+          // plus run_standards_check and add_scheduled_item (both trigger
+          // backend jobs rather than reading state).
+          deniedTools: [
+            'cipp_create_user',
+            'cipp_edit_user',
+            'cipp_disable_user',
+            'cipp_reset_password',
+            'cipp_reset_mfa',
+            'cipp_revoke_sessions',
+            'cipp_offboard_user',
+            'cipp_create_group',
+            'cipp_set_out_of_office',
+            'cipp_set_email_forwarding',
+            'cipp_create_standard_template',
+            'cipp_delete_standard_template',
+            'cipp_run_standards_check',
+            'cipp_add_scheduled_item',
+          ],
         },
       }
     : {}),

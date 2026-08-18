@@ -137,8 +137,18 @@ export type McpServerConfig =
        * (cwd-shim.ts) or drop it — never launch in the wrong directory.
        */
       cwd?: string;
+      /**
+       * Blocks exactly these bare tool names on this server via the
+       * disallowedTools construction (providers/claude.ts) — verified that
+       * Claude Code's allowedTools with a narrow explicit list does NOT hide
+       * the rest of a server's tools, only disallowedTools does. Set by the
+       * host (src/container-config.ts) — no self-mod tool param exposes it,
+       * same deliberate gap as cwd above, so an agent can never grant itself
+       * back a tool the operator blocked.
+       */
+      deniedTools?: string[];
     }
-  | { type: 'http'; url: string; headers?: Record<string, string> };
+  | { type: 'http'; url: string; headers?: Record<string, string>; deniedTools?: string[] };
 
 export interface AgentQuery {
   /** Push a follow-up message into the active query. */

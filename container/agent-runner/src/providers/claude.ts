@@ -128,9 +128,28 @@ export const TOOL_ALLOWLIST = [
 
 // MCP server names are sanitized by the SDK when forming tool prefixes:
 // any character outside [A-Za-z0-9_-] becomes '_'. Mirror that here so our
-// allowlist patterns match what the SDK actually exposes.
+// allowlist/denylist patterns match what the SDK actually exposes.
+//
+// Every server gets the `__*` wildcard here regardless of `deniedTools` —
+// without a namespace's entry in allowedTools the SDK drops the whole
+// namespace, and experimentally a narrower explicit allowedTools list does
+// NOT hide the rest of a server's tools anyway (verified: a model asked to
+// enumerate a server's tools under a narrow allowedTools list still sees
+// every tool). Only disallowedTools (mcpDenyPatterns below) genuinely
+// removes a tool from what the model can see or call.
 function mcpAllowPattern(serverName: string): string {
   return `mcp__${serverName.replace(/[^a-zA-Z0-9_-]/g, '_')}__*`;
+}
+
+// Real enforcement for `deniedTools`: one exact `mcp__<server>__<tool>`
+// disallowedTools entry per blocked tool. This is how a vendor API with no
+// read-only credential scoping of its own gets locked to read-only tools on
+// the NanoClaw side — a genuine permission boundary enforced by the CLI's
+// own disallowedTools filter, not an MCP annotation hint the model can ignore.
+function mcpDenyPatterns(serverName: string, config: McpServerConfig): string[] {
+  if (!config.deniedTools || config.deniedTools.length === 0) return [];
+  const prefix = `mcp__${serverName.replace(/[^a-zA-Z0-9_-]/g, '_')}__`;
+  return config.deniedTools.map((tool) => `${prefix}${tool}`);
 }
 
 interface SDKUserMessage {
@@ -564,7 +583,10 @@ export class ClaudeProvider implements AgentProvider {
           ? { type: 'preset' as const, preset: 'claude_code' as const, append: instructions }
           : undefined,
         allowedTools: [...TOOL_ALLOWLIST, ...Object.keys(this.mcpServers).map(mcpAllowPattern)],
-        disallowedTools: SDK_DISALLOWED_TOOLS,
+        disallowedTools: [
+          ...SDK_DISALLOWED_TOOLS,
+          ...Object.entries(this.mcpServers).flatMap(([name, config]) => mcpDenyPatterns(name, config)),
+        ],
         env: this.env,
         model: this.model,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

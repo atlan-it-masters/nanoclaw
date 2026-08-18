@@ -390,7 +390,10 @@ registerResource({
       description:
         'Add an MCP server to a group. Requires `ncl groups restart` to take effect. ' +
         'Use --id <group-id> --name <server-name> with either --command <cmd> [--args <json-array>] [--env <json-object>] ' +
-        'or --url <url> [--headers <json-object>] (HTTPS, or plain HTTP for localhost / host.docker.internal).',
+        'or --url <url> [--headers <json-object>] (HTTPS, or plain HTTP for localhost / host.docker.internal). ' +
+        'Optional --denied-tools <json-array of bare tool names> blocks exactly those tools on this server ' +
+        '(genuinely hidden from the model, not just discouraged) — the way to lock a vendor API to read-only on ' +
+        'the NanoClaw side when the API itself has no read-only credential scope.',
       handler: async (args) => {
         const id = args.id as string;
         if (!id) throw new Error('--id is required');
@@ -415,6 +418,7 @@ registerResource({
           args: args.args === undefined ? undefined : JSON.parse(String(args.args)),
           env: args.env === undefined ? undefined : JSON.parse(String(args.env)),
           headers: args.headers === undefined ? undefined : JSON.parse(String(args.headers)),
+          deniedTools: args.denied_tools === undefined ? undefined : JSON.parse(String(args.denied_tools)),
         });
         updateContainerConfigJson(id, 'mcp_servers', servers);
 

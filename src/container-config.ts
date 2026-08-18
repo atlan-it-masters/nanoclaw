@@ -59,6 +59,24 @@ export interface McpStdioServerConfig {
    */
   plugin?: string;
   instructions?: string;
+  /**
+   * Blocks exactly these tool names on this server (bare names, no
+   * `mcp__<server>__` prefix) instead of an allowlist — verified experimentally
+   * that Claude Code's `--allowedTools` with a narrow explicit list does NOT
+   * hide the rest of a connected MCP server's tools (only `--allowedTools`
+   * wildcards vs `--disallowedTools` exact names have real effect; a model
+   * asked to enumerate a server's tools under a narrow `--allowedTools` still
+   * sees every tool, restricted or not — only `--disallowedTools` genuinely
+   * removes a tool from what the model can see or call). So this is
+   * enforced by the provider adding `mcp__<server>__<tool>` entries to its
+   * disallowedTools construction (container/agent-runner/src/providers/
+   * claude.ts), not allowedTools — a real permission boundary, not an MCP
+   * annotation hint the model can choose to ignore. Undefined means nothing
+   * is blocked (every tool on the server is reachable). This is how a
+   * server whose upstream API has no read-only credential scoping gets
+   * locked to read-only tools on the NanoClaw side instead.
+   */
+  deniedTools?: string[];
 }
 
 export interface McpHttpServerConfig {
@@ -68,6 +86,8 @@ export interface McpHttpServerConfig {
   /** See McpStdioServerConfig.plugin — same ownership marker. */
   plugin?: string;
   instructions?: string;
+  /** See McpStdioServerConfig.deniedTools. */
+  deniedTools?: string[];
 }
 
 export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig;
@@ -96,6 +116,10 @@ const CAMEL_SPLIT_RE = /([a-z0-9])([A-Z])/g;
  */
 const MCP_SERVER_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Bare MCP tool name charset — mirrors MCP_SERVER_NAME_RE's reasoning; these
+ * end up concatenated into a `mcp__<server>__<tool>` disallowedTools pattern
+ * string passed straight to the provider CLI. */
+const MCP_TOOL_NAME_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
 /** The owning plugin's name when a stored MCP server entry was stamped from a plugin. */
 export function mcpServerPluginOwner(entry: unknown): string | undefined {
@@ -143,6 +167,20 @@ export function parseMcpServerConfig(input: Record<string, unknown>): McpServerC
     throw new Error('MCP instructions must be a string');
   }
 
+  const deniedTools = input.deniedTools;
+  if (deniedTools !== undefined) {
+    if (!Array.isArray(deniedTools) || deniedTools.length === 0) {
+      throw new Error('deniedTools must be a non-empty JSON array of tool names');
+    }
+    for (const tool of deniedTools) {
+      if (typeof tool !== 'string' || !MCP_TOOL_NAME_RE.test(tool)) {
+        throw new Error(
+          `deniedTools entry ${JSON.stringify(tool)} must be 1-128 characters of letters, digits, "_" or "-"`,
+        );
+      }
+    }
+  }
+
   if (url !== undefined) {
     if (command !== undefined) throw new Error('Provide exactly one of command or url');
     if (input.args !== undefined || input.env !== undefined || input.cwd !== undefined) {
@@ -172,6 +210,7 @@ export function parseMcpServerConfig(input: Record<string, unknown>): McpServerC
       url,
       ...(headers === undefined ? {} : { headers }),
       ...(instructions === undefined ? {} : { instructions }),
+      ...(deniedTools === undefined ? {} : { deniedTools: deniedTools as string[] }),
     };
   }
   if (command === undefined) throw new Error('Provide exactly one of command or url');
@@ -194,6 +233,7 @@ export function parseMcpServerConfig(input: Record<string, unknown>): McpServerC
     env,
     ...(cwd === undefined ? {} : { cwd }),
     ...(instructions === undefined ? {} : { instructions }),
+    ...(deniedTools === undefined ? {} : { deniedTools: deniedTools as string[] }),
   };
 }
 

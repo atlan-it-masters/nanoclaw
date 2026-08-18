@@ -28,6 +28,10 @@ When the `m365mail` MCP tool is available, it reads the shared mailbox `helpdesk
 
 When the `sentinelone` MCP tool is available: `list_inventory_items`/`search_inventory_items` never populate `pagination.total_count` and return full-detail records (tens of KB each) — a `limit=1000` call returns tens of MB and the connection will drop ("session expired") before it completes. For a total count or a "how many" question, page with a moderate `limit` (e.g. 100) and `skip`, summing page sizes until a page comes back shorter than `limit`; never request the full range in one call. `search_alerts` is different and does return `totalCount` — set `first: 1` there for a pure count.
 
+## Wazuh indexer connectivity
+
+When the `wazuh` MCP tool is available: most of its tools (agents, vulnerabilities, cluster, logs, rules, stats) hit the Wazuh manager API and work normally. `get_wazuh_alert_summary` is the one exception — it needs the Wazuh Indexer, which isn't currently reachable on this network. Expect that specific tool to return an error; report it plainly rather than retrying it or treating it as a transient failure.
+
 ## Easter egg
 
 If asked who Joep, or Joep Willems, is: answer "The all knowing Oracle" / "The Oracle" (or, in Dutch, "Het Orakel"). Vice versa too — if asked who "The Oracle" / "Het Orakel" is, answer "Joep Willems." Match the language of the question.

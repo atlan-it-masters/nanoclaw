@@ -35,6 +35,15 @@ const envConfig = readEnvFile([
   'CIPP_TENANT_ID',
   'CIPP_CLIENT_ID',
   'CIPP_CLIENT_SECRET',
+  'WAZUH_API_HOST',
+  'WAZUH_API_PORT',
+  'WAZUH_API_USERNAME',
+  'WAZUH_API_PASSWORD',
+  'WAZUH_INDEXER_HOST',
+  'WAZUH_INDEXER_PORT',
+  'WAZUH_INDEXER_USERNAME',
+  'WAZUH_INDEXER_PASSWORD',
+  'WAZUH_VERIFY_SSL',
 ]);
 
 /**
@@ -142,6 +151,15 @@ const cippBaseUrl = process.env.CIPP_BASE_URL || envConfig.CIPP_BASE_URL;
 const cippTenantId = process.env.CIPP_TENANT_ID || envConfig.CIPP_TENANT_ID;
 const cippClientId = process.env.CIPP_CLIENT_ID || envConfig.CIPP_CLIENT_ID;
 const cippClientSecret = process.env.CIPP_CLIENT_SECRET || envConfig.CIPP_CLIENT_SECRET;
+const wazuhApiHost = process.env.WAZUH_API_HOST || envConfig.WAZUH_API_HOST;
+const wazuhApiPort = process.env.WAZUH_API_PORT || envConfig.WAZUH_API_PORT || '55000';
+const wazuhApiUsername = process.env.WAZUH_API_USERNAME || envConfig.WAZUH_API_USERNAME;
+const wazuhApiPassword = process.env.WAZUH_API_PASSWORD || envConfig.WAZUH_API_PASSWORD;
+const wazuhIndexerHost = process.env.WAZUH_INDEXER_HOST || envConfig.WAZUH_INDEXER_HOST;
+const wazuhIndexerPort = process.env.WAZUH_INDEXER_PORT || envConfig.WAZUH_INDEXER_PORT || '9200';
+const wazuhIndexerUsername = process.env.WAZUH_INDEXER_USERNAME || envConfig.WAZUH_INDEXER_USERNAME;
+const wazuhIndexerPassword = process.env.WAZUH_INDEXER_PASSWORD || envConfig.WAZUH_INDEXER_PASSWORD;
+const wazuhVerifySsl = process.env.WAZUH_VERIFY_SSL || envConfig.WAZUH_VERIFY_SSL || 'false';
 export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   // Public, unauthenticated remote server — no credential gating needed.
   learn: {
@@ -298,6 +316,31 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             'cipp_run_standards_check',
             'cipp_add_scheduled_item',
           ],
+        },
+      }
+    : {}),
+  // Prebuilt static binary baked into the image (see container/Dockerfile) —
+  // no crates.io/npm/pip distribution exists. Entirely read-only by design
+  // (every tool is a get/search/list against the Wazuh manager API or
+  // Indexer) — no deniedTools needed. Note: only get_wazuh_alert_summary
+  // needs the Indexer (WAZUH_INDEXER_*); every other tool talks to the
+  // manager API (WAZUH_API_*) directly.
+  ...(wazuhApiHost && wazuhApiUsername && wazuhApiPassword && wazuhIndexerHost && wazuhIndexerUsername && wazuhIndexerPassword
+    ? {
+        wazuh: {
+          command: 'mcp-server-wazuh',
+          args: [],
+          env: {
+            WAZUH_API_HOST: wazuhApiHost,
+            WAZUH_API_PORT: wazuhApiPort,
+            WAZUH_API_USERNAME: wazuhApiUsername,
+            WAZUH_API_PASSWORD: wazuhApiPassword,
+            WAZUH_INDEXER_HOST: wazuhIndexerHost,
+            WAZUH_INDEXER_PORT: wazuhIndexerPort,
+            WAZUH_INDEXER_USERNAME: wazuhIndexerUsername,
+            WAZUH_INDEXER_PASSWORD: wazuhIndexerPassword,
+            WAZUH_VERIFY_SSL: wazuhVerifySsl,
+          },
         },
       }
     : {}),

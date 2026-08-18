@@ -223,10 +223,10 @@ own credentials have no read-only scope:
 | `cipp` | `cipp_create_user`, `cipp_edit_user`, `cipp_disable_user`, `cipp_reset_password`, `cipp_reset_mfa`, `cipp_revoke_sessions`, `cipp_offboard_user`, `cipp_create_group`, `cipp_set_out_of_office`, `cipp_set_email_forwarding`, `cipp_create_standard_template`, `cipp_delete_standard_template`, `cipp_run_standards_check`, `cipp_add_scheduled_item` |
 
 Not restricted: `m365mail` (already read-only at the source via
-`--enabled-tools` on the underlying package), `learn` and `sentinelone`
-(entirely read/query tools by design, nothing to block), `unifi` (the
-`cloud-ea` tool set registered is read/reporting-only — no device-control
-tools exist in that mode).
+`--enabled-tools` on the underlying package), `learn`, `sentinelone`, and
+`wazuh` (entirely read/query tools by design, nothing to block), `unifi`
+(the `cloud-ea` tool set registered is read/reporting-only — no
+device-control tools exist in that mode).
 
 `itglue`'s `get_password`/`search_passwords` are intentionally **not**
 blocked — they read a value rather than mutate anything, so they're a

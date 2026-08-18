@@ -169,6 +169,19 @@ RUN git clone https://github.com/atlan-it-masters/NC_cipp-mcp.git /opt/cipp-mcp 
     chmod +x /usr/local/bin/cipp-mcp && \
     chmod -R a+rX /opt/cipp-mcp
 
+# ---- Wazuh MCP server (Rust, stdio) -------------------------------------------
+# mcp-server-wazuh is a Rust crate with no crates.io/npm/pip distribution —
+# building it from source would mean adding a full Rust toolchain
+# (build-essential, pkg-config, libssl-dev, perl) to this shared image just
+# for one static binary. The upstream project (this fork is a byte-identical
+# mirror of gbrigandi/mcp-server-wazuh, verified by matching commit SHA at
+# v0.3.0) publishes prebuilt static-pie linux-amd64 release binaries — use
+# one of those instead, pinned by sha256.
+RUN curl -fsSL -o /usr/local/bin/mcp-server-wazuh \
+      https://github.com/gbrigandi/mcp-server-wazuh/releases/download/v0.3.0/mcp-server-wazuh-linux-amd64 && \
+    echo "8a18cb44007d4834ee77ae8975355f404c49bda8c0d686e534994e3514134834  /usr/local/bin/mcp-server-wazuh" | sha256sum -c - && \
+    chmod +x /usr/local/bin/mcp-server-wazuh
+
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.
 RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl && \

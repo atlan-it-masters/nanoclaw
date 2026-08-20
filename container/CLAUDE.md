@@ -24,6 +24,14 @@ Standing role, persona, and behavioral instructions belong in `/workspace/agent/
 
 When the `m365mail` MCP tool is available, it reads the shared mailbox `helpdesk@atlan.nl` — pass that address as the mailbox/user parameter on its tools. It's read-only and limited to listing/reading messages (no send, no write).
 
+## Knowledge questions: search both sources
+
+When answering a knowledge/documentation/troubleshooting question (e.g. "how do I...", "what's the procedure for...", error-message lookups), search **both** knowledge sources if the tools are available — they hold different, non-overlapping content:
+- `bookstack` — the general internal documentation wiki.
+- `autotask_search_knowledgebase_articles` — Autotask's own knowledgebase (ticket-resolution write-ups, client-specific fixes). `autotask_get_knowledgebase_article` returns the full article body (search results are summaries only — title/keywords/category, no body text).
+
+Don't stop at the first source that returns a hit — check both, since a good answer may live in either (or both, with useful complementary detail).
+
 ## SentinelOne inventory queries
 
 When the `sentinelone` MCP tool is available: `list_inventory_items`/`search_inventory_items` never populate `pagination.total_count` and return full-detail records (tens of KB each) — a `limit=1000` call returns tens of MB and the connection will drop ("session expired") before it completes. For a total count or a "how many" question, page with a moderate `limit` (e.g. 100) and `skip`, summing page sizes until a page comes back shorter than `limit`; never request the full range in one call. `search_alerts` is different and does return `totalCount` — set `first: 1` there for a pure count.

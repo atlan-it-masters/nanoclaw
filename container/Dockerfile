@@ -207,7 +207,7 @@ RUN git clone https://github.com/atlan-it-masters/NC_veeam-mcp-server.git /opt/v
 # cli-tools.json install further up. The secret is mounted only for this RUN's
 # process and the .npmrc line is written and removed in the same step, so
 # neither the token nor its presence persists in any image layer.
-ARG AUTOTASK_MCP_REF=57534bebc6eee879f5da506fa61567db1687359d
+ARG AUTOTASK_MCP_REF=5387255c0c31ecfd856c36a4337f3674ab227e69
 RUN --mount=type=secret,id=npm_auth_token \
     git clone https://github.com/atlan-it-masters/NC_autotask-mcp.git /opt/autotask-mcp && \
     cd /opt/autotask-mcp && \

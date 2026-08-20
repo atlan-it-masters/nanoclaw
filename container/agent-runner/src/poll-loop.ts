@@ -64,6 +64,38 @@ function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * Observability: one turn_metadata row per genuinely-finished exchange —
+ * NOT per SDK 'result' event. A single user question can produce several
+ * result events (wrap-nudge retry, task-block nudge) before it's truly
+ * done; writing one of these per result event double/triple-counted the
+ * same exchange with escalating latency_ms each time (latency is always
+ * measured from the ORIGINAL inbound message, so a 3-retry exchange logged
+ * 3 rows at e.g. 160s/410s/450s — the same wait, counted three times, badly
+ * skewing any average). Call this only at the points below where the code
+ * has already decided no further retry is queued for this exchange.
+ *
+ * Mirrors task_log's side-channel pattern: never delivered to a channel,
+ * consumed by the host (see delivery.ts's 'turn_metadata' branch). Skipped
+ * for task runs (not a user-facing "question") and when there's no inbound
+ * message to attribute the turn to (e.g. a proactive/scheduled push).
+ */
+function writeTurnMetadata(routing: RoutingContext, event: Extract<ProviderEvent, { type: 'result' }>): void {
+  if (routing.taskRun || !routing.inReplyTo) return;
+  writeMessageOut({
+    id: generateId(),
+    in_reply_to: routing.inReplyTo,
+    kind: 'turn_metadata',
+    content: JSON.stringify({
+      text: event.text,
+      model: event.model,
+      usage: event.usage,
+      totalCostUsd: event.totalCostUsd,
+      toolsCalled: event.toolsCalled,
+    }),
+  });
+}
+
 export interface PollLoopConfig {
   provider: AgentProvider;
   /**
@@ -615,6 +647,7 @@ export async function processQuery(
               continuation: queryContinuation ?? initialContinuation,
               status: 'error',
             });
+            writeTurnMetadata(routing, event); // error results never retry — always final
             archivePrompts.shift();
           } else {
             // An unwrapped final text only warrants the wrap-nudge when NOTHING
@@ -651,9 +684,15 @@ export async function processQuery(
             // A retry result (wrapping or task-block nudge) answers the SAME
             // user prompt — keep it queued so the retry archives against it,
             // not the nudge text.
-            if (!willRetryWrapping && !willRetryTaskBlocks) archivePrompts.shift();
+            if (!willRetryWrapping && !willRetryTaskBlocks) {
+              writeTurnMetadata(routing, event); // no retry queued — this is the final result for this exchange
+              archivePrompts.shift();
+            }
           }
-        } else archivePrompts.shift();
+        } else {
+          writeTurnMetadata(routing, event); // no text at all — nothing to nudge on, so also final
+          archivePrompts.shift();
+        }
         // Turn boundary: reset the per-turn sent count after the result's
         // nudge decision has used it. A nudge retry re-counts via its own
         // text events before the retry result, so resetting on every result

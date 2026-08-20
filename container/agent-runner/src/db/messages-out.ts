@@ -177,12 +177,23 @@ export function getRoutingBySeq(
   return outRow ?? null;
 }
 
-/** Get undelivered messages (for host polling — reads from outbound.db). */
+/**
+ * Get undelivered messages (test-only helper — no production caller; the
+ * host polls outbound.db itself via src/db/session-db.ts).
+ *
+ * Excludes bookkeeping kinds that were never meant to reach a channel —
+ * `task_log` (a task run's run-log mirror) and `turn_metadata` (the
+ * observability side-channel row poll-loop.ts writes once per turn, see its
+ * 'result' handling) — so existing assertions like "exactly one message was
+ * delivered" keep meaning "one chat-visible message," not "one row of any
+ * kind landed in outbound.db."
+ */
 export function getUndeliveredMessages(): MessageOutRow[] {
   return getOutboundDb()
     .prepare(
       `SELECT * FROM messages_out
        WHERE (deliver_after IS NULL OR datetime(deliver_after) <= datetime('now'))
+         AND kind NOT IN ('task_log', 'turn_metadata')
        ORDER BY timestamp ASC`,
     )
     .all() as MessageOutRow[];

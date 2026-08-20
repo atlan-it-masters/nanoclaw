@@ -38,6 +38,7 @@ import { fanOutboundMessage } from './modules/cross-session-context/index.js';
 import { log } from './log.js';
 import { normalizeOptions } from './channels/ask-question.js';
 import { clearOutbox, openInboundDb, openOutboundDb, readOutboxFiles } from './session-manager.js';
+import { logInteraction } from './observability/logging.js';
 import { pauseTypingRefreshAfterDelivery, setTypingAdapter } from './modules/typing/index.js';
 import type { OutboundFile } from './channels/adapter.js';
 import type { PendingApproval, Session } from './types.js';
@@ -246,7 +247,9 @@ async function drainSession(session: Session): Promise<void> {
         // back. Skip the pause for internal traffic (system actions,
         // agent-to-agent routing) — the user doesn't see those and
         // shouldn't get a gap in their typing indicator for them.
-        if (msg.kind !== 'system' && msg.channel_type !== 'agent') {
+        // turn_metadata is pure observability bookkeeping (never delivered
+        // to a channel — see the branch above) and gets the same exclusion.
+        if (msg.kind !== 'system' && msg.kind !== 'turn_metadata' && msg.channel_type !== 'agent') {
           pauseTypingRefreshAfterDelivery(session.id);
           // Cross-session context: fan the agent's own user-facing message
           // into the sessions of the conversation it was delivered to.
@@ -336,6 +339,66 @@ async function deliverMessage(
       }
     } else {
       log.warn('task_log row outside a task session — ignoring', { id: msg.id, sessionId: session.id });
+    }
+    return;
+  }
+
+  // Bot-interaction observability: one row per turn (see
+  // container/agent-runner/src/poll-loop.ts's 'result' handling). Never
+  // delivered to a channel — the caller marks it delivered so it isn't
+  // retried, same as task_log. No-op when DATABASE_URL isn't configured
+  // (logInteraction itself checks).
+  if (msg.kind === 'turn_metadata') {
+    if (!msg.in_reply_to) {
+      log.warn('turn_metadata row with no in_reply_to — cannot attribute to a question, dropping', {
+        id: msg.id,
+        sessionId: session.id,
+      });
+      return;
+    }
+    try {
+      const inboundRow = inDb
+        .prepare('SELECT content, timestamp, channel_type FROM messages_in WHERE id = ?')
+        .get(msg.in_reply_to) as { content: string; timestamp: string; channel_type: string | null } | undefined;
+      if (!inboundRow) {
+        log.warn('turn_metadata row references an inbound message that no longer exists — dropping', {
+          id: msg.id,
+          inReplyTo: msg.in_reply_to,
+          sessionId: session.id,
+        });
+        return;
+      }
+      const inboundContent = JSON.parse(inboundRow.content) as {
+        text?: string;
+        senderId?: string;
+        senderName?: string;
+      };
+      const usage = content.usage as
+        | { inputTokens?: number; outputTokens?: number; cacheCreationTokens?: number; cacheReadTokens?: number }
+        | undefined;
+      await logInteraction({
+        userId: inboundContent.senderId ?? 'unknown',
+        userName: inboundContent.senderName,
+        conversationId: session.id,
+        channel: inboundRow.channel_type ?? undefined,
+        question: inboundContent.text ?? '',
+        answer: typeof content.text === 'string' ? content.text : undefined,
+        toolsCalled: Array.isArray(content.toolsCalled) ? content.toolsCalled : undefined,
+        model: typeof content.model === 'string' ? content.model : undefined,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        latencyMs: Date.now() - new Date(inboundRow.timestamp).getTime(),
+        metadata:
+          usage?.cacheCreationTokens || usage?.cacheReadTokens || content.totalCostUsd
+            ? {
+                cacheCreationTokens: usage?.cacheCreationTokens,
+                cacheReadTokens: usage?.cacheReadTokens,
+                totalCostUsd: content.totalCostUsd,
+              }
+            : undefined,
+      });
+    } catch (err) {
+      log.warn('Failed to log bot interaction from turn_metadata row', { id: msg.id, sessionId: session.id, err });
     }
     return;
   }

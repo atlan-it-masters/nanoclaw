@@ -172,7 +172,27 @@ export type ProviderEvent =
    * poll-loop uses it to surface the result text to the user instead of
    * dropping it as un-wrapped scratchpad, and to skip the re-wrap nudge.
    */
-  | { type: 'result'; text: string | null; isError?: boolean }
+  | {
+      type: 'result';
+      text: string | null;
+      isError?: boolean;
+      /**
+       * Observability fields for the bot-interactions logger — optional
+       * because not every provider implementation populates them (only
+       * claude.ts does, from the SDK's result message). See poll-loop.ts's
+       * 'result' handling, which writes a `turn_metadata` outbound row from
+       * these when present.
+       */
+      model?: string;
+      usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreationTokens: number;
+        cacheReadTokens: number;
+      };
+      totalCostUsd?: number;
+      toolsCalled?: Array<{ name: string; input?: unknown }>;
+    }
   /**
    * An assistant text segment emitted mid-turn (e.g. between tool calls).
    * The SDK's final `result` carries only the LAST assistant text, so a

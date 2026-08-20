@@ -572,6 +572,18 @@ export class ClaudeProvider implements AgentProvider {
 
     const instructions = input.systemContext?.instructions;
 
+    // Observability: which tools this turn calls, for the bot-interactions
+    // logger (see poll-loop.ts's 'result' handling). Scoped to this query()
+    // call — a fresh array per turn — and populated via a wrapper around the
+    // existing preToolUseHook rather than replacing its stuck-detection
+    // logic below.
+    const turnToolCalls: Array<{ name: string; input?: unknown }> = [];
+    const trackingPreToolUseHook: HookCallback = async (hookInput, toolUseId, options) => {
+      const i = hookInput as { tool_name?: string; tool_input?: Record<string, unknown> };
+      turnToolCalls.push({ name: i.tool_name ?? 'unknown', input: i.tool_input });
+      return preToolUseHook(hookInput, toolUseId, options);
+    };
+
     const sdkResult = sdkQuery({
       prompt: stream,
       options: {
@@ -596,7 +608,7 @@ export class ClaudeProvider implements AgentProvider {
         settingSources: ['project', 'user', 'local'],
         mcpServers: this.mcpServers,
         hooks: {
-          PreToolUse: [{ hooks: [preToolUseHook] }],
+          PreToolUse: [{ hooks: [trackingPreToolUseHook] }],
           PostToolUse: [{ hooks: [postToolUseHook] }],
           PostToolUseFailure: [{ hooks: [postToolUseHook] }],
           PreCompact: [{ hooks: [createPreCompactHook(this.assistantName)] }],
@@ -605,6 +617,9 @@ export class ClaudeProvider implements AgentProvider {
     });
 
     let aborted = false;
+    // Captured here, not read as `this.model` inside translateEvents below —
+    // that function declaration doesn't inherit this method's `this` binding.
+    const model = this.model;
 
     async function* translateEvents(): AsyncGenerator<ProviderEvent> {
       let messageCount = 0;
@@ -648,9 +663,35 @@ export class ClaudeProvider implements AgentProvider {
           // (e.g. a non-retryable 403 billing_error) carry their message in
           // `errors[]` instead. Surface either so the poll-loop can deliver a
           // billing/quota notice to the user rather than dropping the turn.
-          const m = message as { result?: string; is_error?: boolean; errors?: string[] };
+          const m = message as {
+            result?: string;
+            is_error?: boolean;
+            errors?: string[];
+            usage?: {
+              input_tokens?: number;
+              output_tokens?: number;
+              cache_creation_input_tokens?: number | null;
+              cache_read_input_tokens?: number | null;
+            };
+            total_cost_usd?: number;
+          };
           const text = m.result ?? (m.errors && m.errors.length > 0 ? m.errors.join('\n') : null);
-          yield { type: 'result', text, isError: m.is_error === true };
+          yield {
+            type: 'result',
+            text,
+            isError: m.is_error === true,
+            model,
+            usage: m.usage
+              ? {
+                  inputTokens: m.usage.input_tokens ?? 0,
+                  outputTokens: m.usage.output_tokens ?? 0,
+                  cacheCreationTokens: m.usage.cache_creation_input_tokens ?? 0,
+                  cacheReadTokens: m.usage.cache_read_input_tokens ?? 0,
+                }
+              : undefined,
+            totalCostUsd: m.total_cost_usd,
+            toolsCalled: turnToolCalls.slice(),
+          };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
           yield { type: 'error', message: 'API retry', retryable: true };
         } else if (message.type === 'rate_limit_event') {

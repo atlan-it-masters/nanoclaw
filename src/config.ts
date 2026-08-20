@@ -67,7 +67,16 @@ const envConfig = readEnvFile([
   'VSZ_USERNAME',
   'VSZ_PASSWORD',
   'VSZ_VERIFY_SSL',
+  'DATABASE_URL',
 ]);
+
+// Bot-interaction observability (src/observability/) — Postgres connection
+// string for logInteraction(). Optional: unset disables logging entirely
+// (db.ts exports a null pool), so an install without Postgres/Grafana set up
+// is unaffected. Not part of DEFAULT_MCP_SERVERS — this isn't an MCP
+// credential, just instance-wide config read the same way every other one
+// here is.
+export const DATABASE_URL = process.env.DATABASE_URL || envConfig.DATABASE_URL;
 
 /**
  * @deprecated WhatsApp adapter copies now read the ASSISTANT_NAME .env key

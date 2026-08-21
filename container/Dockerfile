@@ -10,6 +10,11 @@
 # bind mount at runtime (see src/container-runner.ts). Source-only changes
 # never require an image rebuild.
 
+# @wyre-technology/itglue-mcp - see the "IT Glue MCP server" section below for
+# why this is a COPY --from an upstream-published image instead of a
+# cli-tools.json/pnpm install.
+FROM ghcr.io/wyre-technology/itglue-mcp:v1.16.2 AS itglue-mcp-src
+
 FROM node:22-slim
 
 # ---- Build-time arguments ----------------------------------------------------
@@ -273,6 +278,31 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_D
       /usr/local/bin/uv tool install --with 'mcp<2' \
       "git+https://github.com/atlan-it-masters/NC_Ruckus-vSZ-MCP.git@${RUCKUS_VSZ_MCP_REF}" && \
     chmod -R a+rX /opt/uv-tools /opt/uv-python
+
+# ---- IT Glue MCP server (Node, stdio) -----------------------------------------
+# Used to be a plain cli-tools.json/pnpm install from GitHub Packages
+# (@wyre-technology/itglue-mcp), but that registry only ever got
+# 1.0.0/1.11.1/1.12.0 published to it — the upstream project switched to
+# shipping exclusively via GHCR Docker images after that ("ci: set
+# npmPublish=false ... MCP servers ship via GHCR, not npm"), so 1.12.0 is
+# permanently the newest version reachable from the registry we were
+# installing from. That mattered here: v1.13.0+ fixed a real, confirmed bug
+# — search_documents with no folder filter silently returned ONLY
+# root-level documents (an IT Glue API quirk), so anything filed in a
+# subfolder was invisible to search, and list_document_folders refused to
+# run without a JWT even though the same endpoint works fine with a plain
+# API key (confirmed with a raw curl against our real tenant before
+# touching anything here). Pulling the fixed version straight from its own
+# published image (COPY --from, see the itglue-mcp-src stage up top) gets
+# the exact artifact upstream ships, no source build needed. Verified
+# against a real client org (71 documents across 9 nested folders, matching
+# a manual per-folder tally) before pinning this tag.
+COPY --from=itglue-mcp-src /app/dist /opt/itglue-mcp/dist
+COPY --from=itglue-mcp-src /app/node_modules /opt/itglue-mcp/node_modules
+COPY --from=itglue-mcp-src /app/package.json /opt/itglue-mcp/package.json
+RUN printf '#!/bin/sh\nexec node /opt/itglue-mcp/dist/index.js "$@"\n' > /usr/local/bin/itglue-mcp && \
+    chmod +x /usr/local/bin/itglue-mcp && \
+    chmod -R a+rX /opt/itglue-mcp
 
 # ---- ncl CLI wrapper ----------------------------------------------------------
 # Actual script lives in the mounted source at /app/src/cli/ncl.ts.

@@ -27,13 +27,41 @@ export interface InteractionLog {
 
 const MAX_FIELD_CHARS = 20_000; // guard against runaway tool results blowing up row size
 
-/** Truncate large text/JSON blobs before they hit the DB. */
+/**
+ * Truncate large text/JSON blobs before they hit the DB.
+ *
+ * Arrays are truncated by dropping trailing ELEMENTS, not by collapsing the
+ * whole thing to a string-wrapped object — a consumer that expects
+ * `tools_called` to always be a JSON array (e.g. Grafana's
+ * `jsonb_array_elements(tools_called)` in the Tool Usage Frequency panel)
+ * gets a hard SQL error ("cannot extract elements from an object") the
+ * moment ANY row's array is large enough to hit the old string-truncation
+ * path — found live in production (row with a long ToolSearch/mcp tool-call
+ * chain), and it silently killed the whole panel's query, not just that row.
+ */
 export function truncate(value: unknown, max = MAX_FIELD_CHARS): unknown {
   if (value === undefined || value === null) return value;
-  const str = typeof value === 'string' ? value : JSON.stringify(value);
+  if (typeof value === 'string') {
+    if (value.length <= max) return value;
+    return value.slice(0, max) + `...[truncated, ${value.length} chars total]`;
+  }
+  const str = JSON.stringify(value);
   if (str.length <= max) return value;
-  const clipped = str.slice(0, max) + `...[truncated, ${str.length} chars total]`;
-  return typeof value === 'string' ? clipped : { truncated: clipped };
+  if (Array.isArray(value)) {
+    const kept: unknown[] = [];
+    let size = 2; // "[]"
+    for (const item of value) {
+      const itemSize = JSON.stringify(item).length + 1; // +1 for the separating comma
+      if (size + itemSize > max) break;
+      kept.push(item);
+      size += itemSize;
+    }
+    if (kept.length < value.length) {
+      kept.push({ truncated: true, droppedCount: value.length - kept.length });
+    }
+    return kept;
+  }
+  return { truncated: str.slice(0, max) + `...[truncated, ${str.length} chars total]` };
 }
 
 /**

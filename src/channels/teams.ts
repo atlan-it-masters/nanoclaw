@@ -8,6 +8,7 @@ import { readEnvFile } from '../env.js';
 import type { ChannelDefaults } from './adapter.js';
 import { createChatSdkBridge } from './chat-sdk-bridge.js';
 import { registerChannelAdapter } from './channel-registry.js';
+import { withTeamsFileEmailFallback } from './teams-file-mail.js';
 
 /**
  * Dedicated bot app on a threaded platform. 'mention' (not sticky) is the
@@ -29,12 +30,14 @@ registerChannelAdapter('teams', {
       appType: (env.TEAMS_APP_TYPE as 'SingleTenant' | 'MultiTenant') || undefined,
       appTenantId: env.TEAMS_APP_TENANT_ID || undefined,
     });
-    return createChatSdkBridge({
-      adapter: teamsAdapter,
-      concurrency: 'concurrent',
-      supportsThreads: true,
-      defaults: TEAMS_DEFAULTS,
-    });
+    return withTeamsFileEmailFallback(
+      createChatSdkBridge({
+        adapter: teamsAdapter,
+        concurrency: 'concurrent',
+        supportsThreads: true,
+        defaults: TEAMS_DEFAULTS,
+      }),
+    );
   },
   defaults: TEAMS_DEFAULTS,
 });

@@ -536,6 +536,24 @@ export async function processQuery(
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
         taskBlockNudged = false;
+        // routing is shared (by reference) with the outer processQuery
+        // invocation's writeTurnMetadata calls — without updating it here,
+        // every result produced from THIS pushed exchange (and any later
+        // ones, for as long as the query stays active) gets attributed to
+        // whichever message started the session, not the one it's actually
+        // answering. Confirmed live: a 3-message Teams exchange spanning 13
+        // minutes logged the SAME first question to bot_interactions for
+        // all 3 turns, even though each turn's answer clearly addressed a
+        // different follow-up (visible by comparing the answer text to the
+        // real inbound messages) — the dashboard/viewer showed one question
+        // "asked 3 times" that was never actually asked more than once.
+        // Same real bug affects setCurrentInReplyTo below (a2a return-path
+        // routing for send_message/send_file during a pushed follow-up).
+        const newInReplyTo = keep.find((m) => !isSessionEcho(m))?.id ?? keep[0]?.id;
+        if (newInReplyTo) {
+          routing.inReplyTo = newInReplyTo;
+          setCurrentInReplyTo(newInReplyTo);
+        }
         query.push(prompt);
         archivePrompts.push(prompt);
         markCompleted(keptIds);

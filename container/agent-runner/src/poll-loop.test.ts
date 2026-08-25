@@ -585,3 +585,74 @@ describe('task-run turn wiring (real processQuery)', () => {
     // diagnostic throw above (observed consistently on CI-hosted runners).
   }, 20_000);
 });
+
+const CHAT_ROUTING = {
+  platformId: 'chan-1',
+  channelType: 'discord',
+  threadId: null,
+  inReplyTo: 'c1',
+  taskRun: false,
+};
+
+function turnMetadataRows(): Array<{ in_reply_to: string | null }> {
+  return getOutboundDb()
+    .prepare("SELECT in_reply_to FROM messages_out WHERE kind = 'turn_metadata' ORDER BY seq")
+    .all() as Array<{ in_reply_to: string | null }>;
+}
+
+describe('chat turn wiring (real processQuery)', () => {
+  it('attributes turn_metadata to the message that actually triggered each exchange, not the one that opened the query', async () => {
+    getInboundDb()
+      .prepare(
+        `INSERT INTO destinations (name, display_name, type, channel_type, platform_id, agent_group_id)
+         VALUES ('chan-1', 'chan-1', 'channel', 'discord', 'chan-1', NULL)`,
+      )
+      .run();
+    // Real bug, found live 2026-08-25: a 3-message Teams exchange spanning
+    // several minutes logged the SAME first question to bot_interactions
+    // for every turn, even though each turn answered a different follow-up
+    // — because in_reply_to was captured once when the query opened and
+    // never updated when later messages got pushed into the same still-
+    // active stream. This reproduces the exact shape: two exchanges in one
+    // open query, second one triggered by a message inserted mid-stream.
+    const pushes: string[] = [];
+
+    async function* events(): AsyncGenerator<ProviderEvent> {
+      yield { type: 'init', continuation: 'sess-1' };
+      yield { type: 'result', text: '<message to="chan-1">first answer</message>' };
+
+      insertMessage('c2', 'chat', { sender: 'A', text: 'a different follow-up question' });
+      const deadline = Date.now() + 15_000;
+      while (!pushes.some((p) => p.includes('follow-up question')) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (!pushes.some((p) => p.includes('follow-up question'))) {
+        throw new Error(
+          `follow-up poller never pushed c2 within 15s; pushes seen: ${JSON.stringify(pushes.map((p) => p.slice(0, 80)))}`,
+        );
+      }
+
+      yield { type: 'result', text: '<message to="chan-1">second answer</message>' };
+    }
+
+    await processQuery(
+      {
+        push: (m: string) => pushes.push(m),
+        end: () => {},
+        events: events(),
+        abort: () => {},
+      },
+      CHAT_ROUTING,
+      ['c1'],
+      'claude',
+      undefined,
+      'prompt',
+      undefined,
+    );
+
+    const rows = turnMetadataRows();
+    expect(rows).toHaveLength(2);
+    expect(rows[0].in_reply_to).toBe('c1');
+    expect(rows[1].in_reply_to).toBe('c2'); // not 'c1' — the bug this test guards against
+  }, 20_000);
+});

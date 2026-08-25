@@ -36,6 +36,10 @@ Don't stop at the first source that returns a hit — check both, since a good a
 
 When the `sentinelone` MCP tool is available: `list_inventory_items`/`search_inventory_items` never populate `pagination.total_count` and return full-detail records (tens of KB each) — a `limit=1000` call returns tens of MB and the connection will drop ("session expired") before it completes. For a total count or a "how many" question, page with a moderate `limit` (e.g. 100) and `skip`, summing page sizes until a page comes back shorter than `limit`; never request the full range in one call. `search_alerts` is different and does return `totalCount` — set `first: 1` there for a pure count.
 
+## NinjaOne: organization lookup has no name filter
+
+When the `ninjaone` MCP tool is available: `ninjaone_organizations_list` only accepts `limit`/`cursor` — there is no `name`/search parameter, and passing one is silently accepted and ignored (no error, no warning). This tenant has 100+ organizations and the default page size is 50, with no `hasMore`/total-count field in the response — a single default-limit call can miss a real organization simply because it sorts past the first page. Before concluding an organization doesn't exist, page through fully with `cursor` (keep calling until a page comes back shorter than `limit`) and match by name yourself; don't trust a single call, and don't assume a `name` argument does anything.
+
 ## Wazuh indexer connectivity
 
 When the `wazuh` MCP tool is available: most of its tools (agents, vulnerabilities, cluster, logs, rules, stats) hit the Wazuh manager API and work normally. `get_wazuh_alert_summary` is the one exception — it needs the Wazuh Indexer, which isn't currently reachable on this network. Expect that specific tool to return an error; report it plainly rather than retrying it or treating it as a transient failure.

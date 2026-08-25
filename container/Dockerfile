@@ -157,7 +157,15 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin s
 # container like sentinelone-mcp needed. Defaults to stdio transport already
 # (MCP_TRANSPORT unset), so no extra env is needed to run it that way.
 # chmod -R a+rX matters here too: this RUN is root, the agent runs as node.
-ARG CIPP_MCP_REF=099a3e27e1d40df90955855140c7c8acba930a2c
+#
+# Bumped 2026-08-25: cipp_list_groups' `search` param does nothing
+# server-side — confirmed live against the real tenant, an exact name, a
+# partial name, and a bogus nonexistent string all returned the identical
+# unfiltered 208-group list, despite the tool's own schema promising
+# "Partial matches are supported." Fixed with a client-side filter over the
+# full (already-returned) list. Found while auditing other MCP integrations
+# for the same bug class as a separately-fixed IT Glue issue.
+ARG CIPP_MCP_REF=48b1adcfbf1ee52b6e64e4e3e01e2bcba6d2b47f
 RUN git clone https://github.com/atlan-it-masters/NC_cipp-mcp.git /opt/cipp-mcp && \
     cd /opt/cipp-mcp && \
     git checkout "${CIPP_MCP_REF}" && \

@@ -14,6 +14,8 @@ const envConfig = readEnvFile([
   'ONECLI_API_KEY',
   'TZ',
   'DEFAULT_AGENT_PROVIDER',
+  'NANOCLAW_DEFAULT_MODEL',
+  'NANOCLAW_FAST_MODE',
   'CONTAINER_CPU_LIMIT',
   'CONTAINER_MEMORY_LIMIT',
   'CONTAINER_PIDS_LIMIT',
@@ -96,6 +98,20 @@ export const DEFAULT_AGENT_PROVIDER = (
   'claude'
 ).toLowerCase();
 
+// Instance-wide default model for agent containers, applied when the group has
+// no model of its own. Unset means the provider SDK's own default, which is
+// what every existing install gets. Unlike DEFAULT_AGENT_PROVIDER this is read
+// at spawn rather than stamped at creation, so changing it takes effect on the
+// next container start for every group that has not set one.
+export const DEFAULT_MODEL = process.env.NANOCLAW_DEFAULT_MODEL || envConfig.NANOCLAW_DEFAULT_MODEL || '';
+
+// Fast serving tier for every agent container: faster output at a higher
+// per-token price. Off unless explicitly turned on, and only by '1' or 'true' —
+// a typo must not silently start charging the faster rate.
+export const FAST_MODE = ['1', 'true'].includes(
+  (process.env.NANOCLAW_FAST_MODE || envConfig.NANOCLAW_FAST_MODE || '').toLowerCase(),
+);
+
 /**
  * @deprecated WhatsApp adapter copies now read the ASSISTANT_HAS_OWN_NUMBER
  * .env key directly. Re-export retained one release for stale adapter copies
@@ -114,6 +130,7 @@ export const SENDER_ALLOWLIST_PATH = path.join(HOME_DIR, '.config', 'nanoclaw', 
 export const STORE_DIR = path.resolve(PROJECT_ROOT, 'store');
 export const GROUPS_DIR = path.resolve(PROJECT_ROOT, 'groups');
 export const DATA_DIR = path.resolve(PROJECT_ROOT, 'data');
+export const CENTRAL_DB_PATH = path.join(DATA_DIR, 'v2.db');
 // Local agent-template library. Committed but ships empty (+ README). Resolved
 // once at load. Override to another LOCAL path via NANOCLAW_TEMPLATES_DIR; never
 // a remote URL, never an ncl flag, never runtime-mutable.
@@ -125,8 +142,9 @@ export const TEMPLATES_DIR = process.env.NANOCLAW_TEMPLATES_DIR
 // `nanoclaw-agent:latest` and clobber each other on rebuild.
 export const CONTAINER_IMAGE_BASE = process.env.CONTAINER_IMAGE_BASE || getContainerImageBase(PROJECT_ROOT);
 export const CONTAINER_IMAGE = process.env.CONTAINER_IMAGE || getDefaultContainerImage(PROJECT_ROOT);
-// Install slug — stamped onto every spawned container via --label so
-// cleanupOrphans only reaps containers from this install, not peers.
+// Install slug — the session key's install component, stamped onto every
+// runtime object via the canonical `nanoclaw-install` label so adoption and
+// reaping only ever see this install's sessions, not a peer's.
 export const INSTALL_SLUG = getInstallSlug(PROJECT_ROOT);
 export const CONTAINER_INSTALL_LABEL = `nanoclaw-install=${INSTALL_SLUG}`;
 export const ONECLI_URL = process.env.ONECLI_URL || envConfig.ONECLI_URL;
@@ -153,7 +171,7 @@ export const ONECLI_GATEWAY_CONTAINER =
   process.env.ONECLI_GATEWAY_CONTAINER || envConfig.ONECLI_GATEWAY_CONTAINER || 'onecli';
 
 // Extra hosts (bare hostnames or IPs) that bypass the OneCLI egress proxy,
-// on top of the always-exempt host.docker.internal — see container-runner.ts.
+// on top of the always-exempt host.docker.internal — see drivers/index.ts.
 // The OneCLI gateway container sits in its own network namespace and can't
 // route to a private LAN target (e.g. an on-prem Wazuh/CIPP/whatever host)
 // even though the agent container itself can via the host gateway; MITM-

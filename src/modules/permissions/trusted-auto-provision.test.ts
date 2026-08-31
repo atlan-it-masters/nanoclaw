@@ -45,14 +45,12 @@ vi.mock('../../delivery.js', () => ({
 vi.mock('./user-dm.js', () => ({
   ensureUserDm: vi.fn(async (userId: string) => {
     const { getDb } = await import('../../db/connection.js');
-    const row = getDb()
-      .prepare(
-        `SELECT mg.* FROM messaging_groups mg
-           JOIN user_dms ud ON ud.messaging_group_id = mg.id
-          WHERE ud.user_id = ?`,
-      )
-      .get(userId);
-    return row;
+    return getDb().get(
+      `SELECT mg.* FROM messaging_groups mg
+         JOIN user_dms ud ON ud.messaging_group_id = mg.id
+        WHERE ud.user_id = ?`,
+      userId,
+    );
   }),
 }));
 
@@ -86,17 +84,17 @@ beforeEach(async () => {
   envOverride.current = {};
   if (fs.existsSync(TEST_DIR)) fs.rmSync(TEST_DIR, { recursive: true });
   fs.mkdirSync(TEST_DIR, { recursive: true });
-  const db = initTestDb();
-  runMigrations(db);
+  const db = await initTestDb();
+  await runMigrations(db);
 
   await import('./index.js'); // register hooks
 
-  createAgentGroup({ id: 'ag-owner', name: 'Andy', folder: 'andy', agent_provider: null, created_at: now() });
+  await createAgentGroup({ id: 'ag-owner', name: 'Andy', folder: 'andy', agent_provider: null, created_at: now() });
 
-  upsertUser({ id: 'teams:owner', kind: 'teams', display_name: 'Owner', created_at: now() });
-  grantRole({ user_id: 'teams:owner', role: 'owner', agent_group_id: null, granted_by: null, granted_at: now() });
+  await upsertUser({ id: 'teams:owner', kind: 'teams', display_name: 'Owner', created_at: now() });
+  await grantRole({ user_id: 'teams:owner', role: 'owner', agent_group_id: null, granted_by: null, granted_at: now() });
 
-  createMessagingGroup({
+  await createMessagingGroup({
     id: 'mg-dm-owner',
     channel_type: 'teams',
     platform_id: 'dm-owner',
@@ -106,12 +104,14 @@ beforeEach(async () => {
     created_at: now(),
   });
   const { getDb } = await import('../../db/connection.js');
-  getDb()
-    .prepare(
-      `INSERT INTO user_dms (user_id, channel_type, messaging_group_id, resolved_at)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .run('teams:owner', 'teams', 'mg-dm-owner', now());
+  await getDb().run(
+    `INSERT INTO user_dms (user_id, channel_type, messaging_group_id, resolved_at)
+     VALUES (?, ?, ?, ?)`,
+    'teams:owner',
+    'teams',
+    'mg-dm-owner',
+    now(),
+  );
 
   deliverMock.mockClear();
 });
@@ -145,7 +145,7 @@ describe('trusted auto-provision (TEAMS_AUTO_PROVISION_DM)', () => {
 
     expect(deliverMock).toHaveBeenCalledTimes(1);
     const { getDb } = await import('../../db/connection.js');
-    const count = (getDb().prepare('SELECT COUNT(*) AS c FROM pending_channel_approvals').get() as { c: number }).c;
+    const count = (await getDb().get<{ c: number }>('SELECT COUNT(*) AS c FROM pending_channel_approvals'))!.c;
     expect(count).toBe(1);
   });
 
@@ -160,31 +160,33 @@ describe('trusted auto-provision (TEAMS_AUTO_PROVISION_DM)', () => {
     expect(deliverMock).not.toHaveBeenCalled();
 
     const { getDb } = await import('../../db/connection.js');
-    const pendingCount = (getDb().prepare('SELECT COUNT(*) AS c FROM pending_channel_approvals').get() as { c: number })
-      .c;
+    const pendingCount = (await getDb().get<{ c: number }>('SELECT COUNT(*) AS c FROM pending_channel_approvals'))!.c;
     expect(pendingCount).toBe(0);
 
-    const agentGroups = getDb().prepare('SELECT * FROM agent_groups WHERE id != ?').all('ag-owner') as Array<{
-      id: string;
-      name: string;
-    }>;
+    const agentGroups = await getDb().all<{ id: string; name: string }>(
+      'SELECT * FROM agent_groups WHERE id != ?',
+      'ag-owner',
+    );
     expect(agentGroups).toHaveLength(1);
     expect(agentGroups[0].name).toBe('Atlan Assistant (Colleague)');
 
-    const mga = getDb()
-      .prepare('SELECT * FROM messaging_group_agents WHERE agent_group_id = ?')
-      .get(agentGroups[0].id) as { engage_mode: string; engage_pattern: string | null; sender_scope: string };
+    const mga = await getDb().get<{ engage_mode: string; engage_pattern: string | null; sender_scope: string }>(
+      'SELECT * FROM messaging_group_agents WHERE agent_group_id = ?',
+      agentGroups[0].id,
+    );
     expect(mga).toBeDefined();
-    expect(mga.engage_mode).toBe('pattern');
-    expect(mga.engage_pattern).toBe('.');
-    expect(mga.sender_scope).toBe('known');
+    expect(mga!.engage_mode).toBe('pattern');
+    expect(mga!.engage_pattern).toBe('.');
+    expect(mga!.sender_scope).toBe('known');
 
     // Teams sender ids already carry a colon (e.g. "29:xxx"), so
     // extractAndUpsertUser does not add a "teams:" prefix — see the
     // "Some platforms already include a colon" comment above it.
-    const member = getDb()
-      .prepare('SELECT 1 AS x FROM agent_group_members WHERE user_id = ? AND agent_group_id = ?')
-      .get('29:colleague', agentGroups[0].id);
+    const member = await getDb().get(
+      'SELECT 1 AS x FROM agent_group_members WHERE user_id = ? AND agent_group_id = ?',
+      '29:colleague',
+      agentGroups[0].id,
+    );
     expect(member).toBeDefined();
 
     expect(wakeContainer).toHaveBeenCalled();

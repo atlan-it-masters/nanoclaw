@@ -165,7 +165,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin s
 # "Partial matches are supported." Fixed with a client-side filter over the
 # full (already-returned) list. Found while auditing other MCP integrations
 # for the same bug class as a separately-fixed IT Glue issue.
-ARG CIPP_MCP_REF=48b1adcfbf1ee52b6e64e4e3e01e2bcba6d2b47f
+ARG CIPP_MCP_REF=461cab0172841f92d6786d50b291c74fd1ca861b
 RUN git clone https://github.com/atlan-it-masters/NC_cipp-mcp.git /opt/cipp-mcp && \
     cd /opt/cipp-mcp && \
     git checkout "${CIPP_MCP_REF}" && \
@@ -215,7 +215,7 @@ RUN git clone https://github.com/atlan-it-masters/NC_veeam-mcp-server.git /opt/v
 # cli-tools.json install further up. The secret is mounted only for this RUN's
 # process and the .npmrc line is written and removed in the same step, so
 # neither the token nor its presence persists in any image layer.
-ARG AUTOTASK_MCP_REF=5387255c0c31ecfd856c36a4337f3674ab227e69
+ARG AUTOTASK_MCP_REF=68aa0a73ac28c4434fd18fb4550a89210d5e3cb8
 RUN --mount=type=secret,id=npm_auth_token \
     git clone https://github.com/atlan-it-masters/NC_autotask-mcp.git /opt/autotask-mcp && \
     cd /opt/autotask-mcp && \
@@ -303,7 +303,7 @@ RUN UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_D
 # results for either); a genuinely nonexistent org still correctly
 # returns 0 (no false positives from the fallback). All 242 of the
 # fork's own tests still pass.
-ARG ITGLUE_MCP_REF=742295672c12125f2bb84996e1913222ed25e442
+ARG ITGLUE_MCP_REF=20ea507259ad23e6b0b85e4146e4bf5c62caff61
 RUN git clone https://github.com/atlan-it-masters/NC_itglue-mcp.git /opt/itglue-mcp && \
     cd /opt/itglue-mcp && \
     git checkout "${ITGLUE_MCP_REF}" && \

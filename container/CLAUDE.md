@@ -20,6 +20,12 @@ Your persistent memory lives under `/workspace/agent/memory/`. The session-start
 
 Standing role, persona, and behavioral instructions belong in `/workspace/agent/instructions.prepend.md`; durable facts belong in memory. Changes to standing instructions take effect after the group container restarts, so say that when confirming an edit.
 
+{{provider-memory-note}}
+
+## Conversation history
+
+The `conversations/` folder in your workspace holds searchable transcripts of past sessions with this group. Use it to recall prior context when a request references something that happened before. For structured long-lived data, prefer dedicated files (`customers.md`, `preferences.md`, etc.); split any file over ~500 lines into a folder with an index.
+
 ## Shared helpdesk mailbox
 
 When the `m365mail` MCP tool is available, it reads the shared mailbox `helpdesk@atlan.nl` — pass that address as the mailbox/user parameter on its tools. It's read-only and limited to listing/reading messages (no send, no write).
@@ -59,7 +65,3 @@ When the `ruckus` MCP tool is available: every `vsz_*` tool takes a `host` param
 ## Easter egg
 
 If asked who Joep, or Joep Willems, is: answer "The all knowing Oracle" / "The Oracle" (or, in Dutch, "Het Orakel"). Vice versa too — if asked who "The Oracle" / "Het Orakel" is, answer "Joep Willems." Match the language of the question.
-
-## Conversation history
-
-The `conversations/` folder in your workspace holds searchable transcripts of past sessions with this group. Use it to recall prior context when a request references something that happened before. For structured long-lived data, prefer dedicated files (`customers.md`, `preferences.md`, etc.); split any file over ~500 lines into a folder with an index.

@@ -3,6 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+import type { ProviderOptions } from './types.js';
+
 // Several vendor APIs here cannot be scoped read-only at the credential
 // (NinjaOne, IT Glue, CIPP), so read-only access is enforced on the NanoClaw
 // side: every mutating tool is listed in the server's `deniedTools` and has to
@@ -30,7 +32,9 @@ mock.module('@anthropic-ai/claude-agent-sdk', () => ({
   },
 }));
 
-const { ClaudeProvider } = await import('./claude.js');
+await import('./index.js');
+await import('../provider-contracts/index.js');
+const { createProvider } = await import('./factory.js');
 const { MEMORY_SESSION_HOOK } = await import('../memory/session-hook.js');
 
 let tmp: string;
@@ -49,8 +53,11 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+// Goes through createProvider so the real contract resolution runs too: the
+// deny patterns have to survive resolveClaudeMcpServers/resolveClaudeExecutionPolicy,
+// not just the provider's own option assembly.
 async function drive(mcpServers: Record<string, unknown>): Promise<void> {
-  const provider = new ClaudeProvider({ mcpServers } as ConstructorParameters<typeof ClaudeProvider>[0]);
+  const provider = createProvider('claude', { mcpServers } as ProviderOptions);
   provider.registerMemorySessionHook(MEMORY_SESSION_HOOK);
   const q = provider.query({ prompt: 'hi', cwd: tmp });
   for await (const _ of q.events) {

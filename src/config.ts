@@ -70,6 +70,7 @@ const envConfig = readEnvFile([
   'VSZ_PASSWORD',
   'VSZ_VERIFY_SSL',
   'DATABASE_URL',
+  'WEBHOOK_PORT',
 ]);
 
 // Bot-interaction observability (src/observability/) — Postgres connection
@@ -181,6 +182,15 @@ export const NANOCLAW_NO_PROXY_HOSTS = (process.env.NANOCLAW_NO_PROXY_HOSTS || e
   .split(',')
   .map((h) => h.trim())
   .filter(Boolean);
+// Resolve when the listener starts so a late process override still wins.
+export function getWebhookPort(): number {
+  const raw = process.env.WEBHOOK_PORT || envConfig.WEBHOOK_PORT || '3000';
+  const port = Number(raw);
+  if (!/^[1-9]\d*$/.test(raw) || !Number.isInteger(port) || port > 65_535) {
+    throw new Error(`Invalid WEBHOOK_PORT ${JSON.stringify(raw)}: expected an integer from 1 to 65535`);
+  }
+  return port;
+}
 
 // Timezone for scheduled tasks, message formatting, etc.
 // Validates each candidate is a real IANA identifier before accepting.

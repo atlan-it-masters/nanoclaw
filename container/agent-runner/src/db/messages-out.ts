@@ -123,18 +123,17 @@ export function getRoutingBySeq(
 }
 
 /**
- * Undelivered outbound messages, excluding bookkeeping kinds that were never
- * meant to reach a channel — `task_log` (a task run's run-log mirror) and
- * `turn_metadata` (the observability side-channel row poll-loop.ts writes
- * once per turn, see its 'result' handling) — so existing assertions like
- * "exactly one message was delivered" keep meaning "one chat-visible
- * message," not "one row of any kind landed in outbound.db." Also feeds
- * poll-loop.ts's own seq bookkeeping (maxOutboundSeq, chatRowWrittenSince,
- * wasWrittenInSeqWindow), so this filter isn't just test hygiene.
+ * Undelivered outbound messages, excluding `turn_metadata` — the observability
+ * side-channel row poll-loop.ts writes once per turn (see its 'result'
+ * handling), which was never meant to reach a channel and which upstream has
+ * no concept of. `task_log` IS returned: upstream's task delivery asserts on
+ * it here, and this also feeds poll-loop.ts's own seq bookkeeping
+ * (maxOutboundSeq, chatRowWrittenSince, wasWrittenInSeqWindow), so the filter
+ * stays as narrow as the one kind upstream cannot know about.
  */
 export function getUndeliveredMessages(): MessageOutRow[] {
   return getAgentMailbox()
     .operations.getUndeliveredMessages()
     .map(messageRow)
-    .filter((m) => m.kind !== 'task_log' && m.kind !== 'turn_metadata');
+    .filter((m) => m.kind !== 'turn_metadata');
 }

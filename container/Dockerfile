@@ -56,6 +56,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git \
         tini \
         unzip \
+        poppler-utils \
     && if [ "$INSTALL_CJK_FONTS" = "true" ]; then \
         apt-get install -y --no-install-recommends fonts-noto-cjk; \
        fi \
@@ -139,6 +140,13 @@ RUN --mount=type=cache,target=/root/.cache/pnpm \
 # see container/ms365-mail-mcp-wrapper.js for why this wrapper exists.
 COPY ms365-mail-mcp-wrapper.js /usr/local/bin/ms365-mail-mcp-wrapper.js
 RUN chmod +x /usr/local/bin/ms365-mail-mcp-wrapper.js
+
+# ---- SharePoint documents MCP server (read-only, one site) --------------------
+# Zero-dependency stdio server — see container/sharepoint-docs-mcp.js for why
+# this exists alongside ms-365-mcp-server (no file-content download tool).
+# Uses unzip (Office files) and poppler-utils' pdftotext (PDFs) from apt above.
+COPY sharepoint-docs-mcp.js /usr/local/bin/sharepoint-docs-mcp
+RUN chmod +x /usr/local/bin/sharepoint-docs-mcp
 
 # ---- UniFi MCP server (Python, stdio) -----------------------------------------
 # unifi-mcp-server is a PyPI package; this image is Node-only, so install it

@@ -31,6 +31,10 @@ const envConfig = readEnvFile([
   'MS365_MAIL_TENANT_ID',
   'MS365_MAIL_CLIENT_ID',
   'MS365_MAIL_CLIENT_SECRET',
+  'ISO27001_SHAREPOINT_SITE_URL',
+  'ISO27001_SHAREPOINT_TENANT_ID',
+  'ISO27001_SHAREPOINT_CLIENT_ID',
+  'ISO27001_SHAREPOINT_CLIENT_SECRET',
   'SENTINELONE_CONSOLE_BASE_URL',
   'SENTINELONE_API_TOKEN',
   'UNIFI_API_KEY',
@@ -216,6 +220,13 @@ const itglueRegion = process.env.ITGLUE_REGION || envConfig.ITGLUE_REGION || 'us
 const ms365MailTenantId = process.env.MS365_MAIL_TENANT_ID || envConfig.MS365_MAIL_TENANT_ID;
 const ms365MailClientId = process.env.MS365_MAIL_CLIENT_ID || envConfig.MS365_MAIL_CLIENT_ID;
 const ms365MailClientSecret = process.env.MS365_MAIL_CLIENT_SECRET || envConfig.MS365_MAIL_CLIENT_SECRET;
+const iso27001SiteUrl = process.env.ISO27001_SHAREPOINT_SITE_URL || envConfig.ISO27001_SHAREPOINT_SITE_URL;
+// Same tenant as the mail app unless set — the app registration itself is separate.
+const iso27001TenantId =
+  process.env.ISO27001_SHAREPOINT_TENANT_ID || envConfig.ISO27001_SHAREPOINT_TENANT_ID || ms365MailTenantId;
+const iso27001ClientId = process.env.ISO27001_SHAREPOINT_CLIENT_ID || envConfig.ISO27001_SHAREPOINT_CLIENT_ID;
+const iso27001ClientSecret =
+  process.env.ISO27001_SHAREPOINT_CLIENT_SECRET || envConfig.ISO27001_SHAREPOINT_CLIENT_SECRET;
 const sentineloneConsoleBaseUrl = process.env.SENTINELONE_CONSOLE_BASE_URL || envConfig.SENTINELONE_CONSOLE_BASE_URL;
 const sentineloneApiToken = process.env.SENTINELONE_API_TOKEN || envConfig.SENTINELONE_API_TOKEN;
 const unifiApiKey = process.env.UNIFI_API_KEY || envConfig.UNIFI_API_KEY;
@@ -343,6 +354,24 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             MS365_MAIL_TENANT_ID: ms365MailTenantId,
             MS365_MAIL_CLIENT_ID: ms365MailClientId,
             MS365_MAIL_CLIENT_SECRET: ms365MailClientSecret,
+          },
+        },
+      }
+    : {}),
+  // ISO 27001 documentation: read-only access to one SharePoint site via
+  // container/sharepoint-docs-mcp.js (no write tools exist). The app
+  // registration holds only Sites.Selected with a `read` grant on this site,
+  // so Graph itself refuses anything outside it or any write.
+  ...(iso27001SiteUrl && iso27001TenantId && iso27001ClientId && iso27001ClientSecret
+    ? {
+        iso27001: {
+          command: '/usr/local/bin/sharepoint-docs-mcp',
+          args: [],
+          env: {
+            SHAREPOINT_DOCS_SITE_URL: iso27001SiteUrl,
+            SHAREPOINT_DOCS_TENANT_ID: iso27001TenantId,
+            SHAREPOINT_DOCS_CLIENT_ID: iso27001ClientId,
+            SHAREPOINT_DOCS_CLIENT_SECRET: iso27001ClientSecret,
           },
         },
       }

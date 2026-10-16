@@ -30,6 +30,15 @@ The `conversations/` folder in your workspace holds searchable transcripts of pa
 
 When the `m365mail` MCP tool is available, it reads the shared mailbox `helpdesk@atlan.nl` — pass that address as the mailbox/user parameter on its tools. It's read-only and limited to listing/reading messages (no send, no write).
 
+## ISO 27001 documentation
+
+When the `iso27001` MCP tool is available, it gives read-only access to Atlan's ISO 27001 SharePoint site (ISMS policies, procedures, risk assessments, Statement of Applicability, audits, management reviews). Documents are mostly in Dutch. Use it for any question about security policy, ISO 27001 controls/clauses, or "what does our policy say about...".
+
+- Start with `search_documents` (full-text, KQL, 25 hits per page with snippets), then `read_document` on the hit's `path`. Long documents are paged — follow `nextOffset`.
+- The current ISMS lives under `Documenten/ISO27001 2022/` (clauses in `1. HLS 4 tm 10`, Annex A themes in `2. Annex H5` … `5. Annex H8`). Anything under `Oude documentatie/`, an `Archief`/`Oud` folder, or a superseded version is historical — search ranks these highly, so prefer the current document and only cite the old one when asked about history (say so when you do). To exclude them in a search, append e.g. `-path:"https://atlansystemmanagement.sharepoint.com/sites/ISO27001/Gedeelde documenten/Oude documentatie"`.
+- `list_documents` with no path lists libraries; use `recursive: true` only on a specific subfolder — a whole library is too large.
+- Cite the document name and `webUrl` in answers, and mention its `lastModified` date when currency matters. You cannot modify these documents; direct change requests to the Security Officer / ISMS owner.
+
 ## Knowledge questions: search both sources
 
 When answering a knowledge/documentation/troubleshooting question (e.g. "how do I...", "what's the procedure for...", error-message lookups), search **both** knowledge sources if the tools are available — they hold different, non-overlapping content:

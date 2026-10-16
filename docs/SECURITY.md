@@ -226,7 +226,7 @@ own credentials have no read-only scope:
 | `cove` | `call`, `import` — see below |
 | `ruckus` | `vsz_create_zone`, `vsz_update_zone`, `vsz_delete_zone`, `vsz_update_ap`, `vsz_delete_ap`, `vsz_reboot_ap`, `vsz_create_wlan`, `vsz_update_wlan`, `vsz_delete_wlan`, `vsz_enable_disable_wlan`, `vsz_disconnect_client`, `vsz_acknowledge_alarm`, `vsz_clear_alarm`, `vsz_create_domain`, `vsz_block_client`, `vsz_unblock_client`, `vsz_mark_rogue` |
 
-Not restricted: `m365mail` and `bookstack` (already read-only at the
+Not restricted: `iso27001` (a purpose-built server with only list/search/read tools, and its app registration holds only `Sites.Selected` with a `read` grant on the one ISO 27001 site — read-only enforced by Graph itself), `m365mail` and `bookstack` (already read-only at the
 source — `--enabled-tools` / `BOOKSTACK_ENABLE_WRITE=false` on the
 underlying package; for bookstack verified directly by diffing `tools/list`
 with the flag on vs off, 38 tools vs 20, not just trusting the README),

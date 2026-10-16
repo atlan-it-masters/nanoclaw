@@ -78,11 +78,12 @@ export function readSetting(key: (typeof SETTINGS)[number], env: NodeJS.ProcessE
  * states the intent, this realizes it, and nothing rides between them.
  */
 function dockerNetworkArgs(spec: SessionSpec): string[] {
-  if (ensureEgressNetwork()) {
+  if (spec.networkAccess.target.kind === 'session-container') return [];
+  if (ensureEgressNetwork(spec.networkAccess)) {
     log.info('Egress lockdown active', { containerName: agentContainerName(spec), network: EGRESS_NETWORK });
     return egressNetworkArgs();
   }
-  return os.platform() === 'linux' ? ['--add-host=host.docker.internal:host-gateway'] : [];
+  return os.platform() === 'linux' ? [`--add-host=${spec.networkAccess.endpoint}:host-gateway`] : [];
 }
 
 /**
@@ -100,20 +101,30 @@ function dockerNetworkArgs(spec: SessionSpec): string[] {
  *
  * Deliberately absent under lockdown: exempting a host there would let agent
  * traffic bypass the mandatory gateway, defeating the lockdown's whole point.
- * Calling `ensureEgressNetwork()` again here (already called once inside
+ * Calling `ensureEgressNetwork(access)` again here (already called once inside
  * `dockerNetworkArgs`) is redundant but cheap and idempotent — it never
  * mutates on a second call once the network/attachment already exist.
  */
-function dockerNoProxyEnvArgs(): string[] {
-  if (ensureEgressNetwork()) return [];
-  const noProxyHosts = ['host.docker.internal', ...NANOCLAW_NO_PROXY_HOSTS].join(',');
+function dockerNoProxyEnvArgs(spec: SessionSpec): string[] {
+  if (spec.networkAccess.target.kind === 'session-container') return [];
+  if (ensureEgressNetwork(spec.networkAccess)) return [];
+  const noProxyHosts = [
+    ...new Set(['host.docker.internal', spec.networkAccess.endpoint, ...NANOCLAW_NO_PROXY_HOSTS]),
+  ].join(',');
   return ['-e', `NO_PROXY=${noProxyHosts}`, '-e', `no_proxy=${noProxyHosts}`];
 }
 
 registerSessionDriver(
   DEFAULT_DRIVER_KIND,
   (policy) =>
-    new DockerSessionDriver({ ...policy, networkArgsFor: dockerNetworkArgs, envArgsFor: dockerNoProxyEnvArgs }),
+    new DockerSessionDriver({
+      ...policy,
+      networkArgsFor: dockerNetworkArgs,
+      envArgsFor: dockerNoProxyEnvArgs,
+      reconcileNetworkAccess: (access) => {
+        if (access.target.kind !== 'session-container') ensureEgressNetwork(access);
+      },
+    }),
 );
 
 export function configuredDriverKind(env: NodeJS.ProcessEnv = process.env): DriverKind {
@@ -149,6 +160,7 @@ export function mountPolicy(env: NodeJS.ProcessEnv = process.env): MountPolicy {
     // identity-material mount is denied by a policy naming a path that looks
     // correct.
     materialsRoot: readSetting('NANOCLAW_SESSION_MATERIAL_ROOT', env) || path.join(DATA_DIR, 'session-materials'),
+    gatewayTrustRoot: path.join(DATA_DIR, 'gateway-trust'),
   };
 }
 

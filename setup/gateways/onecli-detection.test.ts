@@ -39,4 +39,5 @@ it('resolves an unstamped offline legacy install through the actual detector', (
   fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
   expect(resolveGatewaySelection(root, undefined, path.resolve('.claude/skills'))).toBe('onecli');
   expect(fs.readFileSync(path.join(root, '.env'), 'utf8')).not.toContain('NANOCLAW_GATEWAY_PROVIDER');
-});
+  // Spawns a real `pnpm exec tsx` per gateway skill: seconds each on a slow host.
+}, 30_000);

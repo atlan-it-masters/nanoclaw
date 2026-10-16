@@ -112,5 +112,6 @@ describe('real detector probe', () => {
     });
     expect(loud).toContain('WARN');
     expect(detectInstalledGateway(root)).toBe('fixture');
-  });
+    // Spawns a real nested `pnpm exec tsx`: seconds on a slow host.
+  }, 30_000);
 });

@@ -296,7 +296,10 @@ describe('update-nanoclaw transaction end to end', () => {
     const bin = temp('nanoclaw-update-bin-');
     const pnpm = path.join(bin, 'pnpm');
     // Runs the detector script, the last argument of `pnpm --silent exec tsx <script>`.
-    write(bin, 'pnpm', `#!/bin/sh\nfor script; do :; done\nexec ${JSON.stringify(process.execPath)} "$script"\n`);
+    // Through tsx, as the real `pnpm exec tsx` does: Node's built-in type
+    // stripping is absent from some distro Node builds (e.g. Debian's).
+    const tsx = path.resolve('node_modules/.bin/tsx');
+    write(bin, 'pnpm', `#!/bin/sh\nfor script; do :; done\nexec ${JSON.stringify(tsx)} "$script"\n`);
     fs.chmodSync(pnpm, 0o755);
     const previousPath = process.env.PATH;
     process.env.PATH = `${bin}${path.delimiter}${previousPath ?? ''}`;

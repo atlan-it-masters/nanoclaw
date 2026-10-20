@@ -33,6 +33,8 @@ const envConfig = readEnvFile([
   'ISO27001_SHAREPOINT_TENANT_ID',
   'ISO27001_SHAREPOINT_CLIENT_ID',
   'ISO27001_SHAREPOINT_CLIENT_SECRET',
+  'THREECX_RELAY_TOKEN',
+  'THREECX_RELAY_PORT',
   'SENTINELONE_CONSOLE_BASE_URL',
   'SENTINELONE_API_TOKEN',
   'UNIFI_API_KEY',
@@ -214,6 +216,10 @@ const itglueRegion = process.env.ITGLUE_REGION || envConfig.ITGLUE_REGION || 'us
 const ms365MailTenantId = process.env.MS365_MAIL_TENANT_ID || envConfig.MS365_MAIL_TENANT_ID;
 const ms365MailClientId = process.env.MS365_MAIL_CLIENT_ID || envConfig.MS365_MAIL_CLIENT_ID;
 const ms365MailClientSecret = process.env.MS365_MAIL_CLIENT_SECRET || envConfig.MS365_MAIL_CLIENT_SECRET;
+// Only the relay's own token: the 3CX service-principal secret stays with the
+// host-side relay (host-services/3cx-mcp-relay.mjs) and never reaches here.
+const threecxRelayToken = process.env.THREECX_RELAY_TOKEN || envConfig.THREECX_RELAY_TOKEN;
+const threecxRelayPort = process.env.THREECX_RELAY_PORT || envConfig.THREECX_RELAY_PORT || '8091';
 const iso27001SiteUrl = process.env.ISO27001_SHAREPOINT_SITE_URL || envConfig.ISO27001_SHAREPOINT_SITE_URL;
 // Same tenant as the mail app unless set — the app registration itself is separate.
 const iso27001TenantId =
@@ -367,6 +373,18 @@ export const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
             SHAREPOINT_DOCS_CLIENT_ID: iso27001ClientId,
             SHAREPOINT_DOCS_CLIENT_SECRET: iso27001ClientSecret,
           },
+        },
+      }
+    : {}),
+  // 3CX PBX via the host-side relay (host-services/3cx-mcp-relay.mjs): the
+  // relay holds the service-principal secret and OAuth token on the host and
+  // exposes only tools 3CX marks read-only. Agents present a relay token.
+  ...(threecxRelayToken
+    ? {
+        threecx: {
+          type: 'http',
+          url: `http://host.docker.internal:${threecxRelayPort}/mcp`,
+          headers: { Authorization: `Bearer ${threecxRelayToken}` },
         },
       }
     : {}),

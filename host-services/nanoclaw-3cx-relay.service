@@ -1,0 +1,15 @@
+[Unit]
+Description=NanoClaw 3CX MCP relay (host-side, read-only tool filter)
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/atlan/nanoclaw-v2
+ExecStart=/usr/bin/node /home/atlan/nanoclaw-v2/host-services/3cx-mcp-relay.mjs
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/home/atlan/nanoclaw-v2/logs/3cx-relay.log
+StandardError=append:/home/atlan/nanoclaw-v2/logs/3cx-relay.log
+
+[Install]
+WantedBy=default.target

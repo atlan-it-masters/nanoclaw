@@ -30,6 +30,10 @@ The `conversations/` folder in your workspace holds searchable transcripts of pa
 
 When the `m365mail` MCP tool is available, it reads the shared mailbox `helpdesk@atlan.nl` — pass that address as the mailbox/user parameter on its tools. It's read-only and limited to listing/reading messages (no send, no write).
 
+## 3CX phone system
+
+When the `threecx` MCP tool is available, it gives read-only access to Atlan's 3CX PBX (atlan.my3cx.nl): extensions, queues, ring groups and IVRs (`list_peers`, `find_extension`), and contact lookups in the phonebook and CRM (`list_phonebook`, `list_crm_contacts`, `find_by_email`). `get_edit_url` returns a link to an item in the 3CX admin console — include it when the user may want to change something, since you cannot make changes yourself. Any tool that would modify the PBX is blocked by the relay; say so plainly instead of retrying.
+
 ## ISO 27001 documentation
 
 When the `iso27001` MCP tool is available, it gives read-only access to Atlan's ISO 27001 SharePoint site (ISMS policies, procedures, risk assessments, Statement of Applicability, audits, management reviews). Documents are mostly in Dutch. Use it for any question about security policy, ISO 27001 controls/clauses, or "what does our policy say about...".
